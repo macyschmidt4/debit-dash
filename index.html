@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Debit Dash</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1e2a4a;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(() => {
+  'use strict';
+
+  // ===========================================================================
+  // CONSTANTS & PALETTE
+  // ===========================================================================
+  const COLORS = {
+    navy: '#1e2a4a',
+    ledger: '#e8f5e9',
+    green: '#2e7d32',
+    gold: '#f9a825',
+    red: '#e53935',
+    white: '#ffffff',
+    ruleLight: '#c8e6c9',
+    ruleDark: '#a5d6a7',
+    skin: '#f6cfa8',
+    goldDark: '#c17900',
+    paper: '#fafafa',
+    paperEdge: '#b0bec5',
+  };
+
+  const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+  const MAX_GAME_WIDTH = 500;   // game area never wider than this (CSS px)
+  const LANES = 3;
+  const SLIDE_TIME = 0.15;      // seconds for a lane switch
+  const MAX_LIVES = 3;
+  const INVINCIBLE_TIME = 1.5;  // seconds of invulnerability after a hit
+  const COIN_POINTS = 10;
+  const DEATH_ANIM_TIME = 1.4;  // seconds the spin-and-fall lasts
+
+  // Speeds are expressed as a fraction of the game area height per second,
+  // so the game feels the same on short and tall screens.
+  const START_SPEED = 0.5;
+  const MAX_SPEED = 1.25;
+  const SPEED_RAMP = 0.012;     // speed gained per second of play
+  const ROW_TIME = 0.75;        // seconds between spawn rows (at any speed)
+
+  // ===========================================================================
+  // CANVAS SETUP & RESIZING
+  // ===========================================================================
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  let dpr = 1;
+  let viewW = 0, viewH = 0;     // full window size
+  let W = 0, H = 0;             // game area size
+  let offsetX = 0;              // left edge of game area in the window
+  let laneW = 0;                // width of a single lane
+  let u = 1;                    // drawing unit, scales sprites to the screen
+
+  function laneCenter(lane) {
+    return laneW * (lane + 0.5);
+  }
+
+  function playerBaseY() {
+    return H - Math.max(40, 45 * u);
+  }
+
+  function resize() {
+    const oldH = H;
+    const oldLaneW = laneW;
+
+    dpr = window.devicePixelRatio || 1;
+    viewW = window.innerWidth;
+    viewH = window.innerHeight;
+    canvas.width = Math.round(viewW * dpr);
+    canvas.height = Math.round(viewH * dpr);
+    canvas.style.width = viewW + 'px';
+    canvas.style.height = viewH + 'px';
+
+    W = Math.min(viewW, MAX_GAME_WIDTH);
+    H = viewH;
+    offsetX = (viewW - W) / 2;
+    laneW = W / LANES;
+    u = Math.min(laneW / 100, H / 650);
+
+    // Keep existing objects in proportion after a resize mid-game.
+    if (oldH > 0) {
+      const ry = H / oldH;
+      for (const o of objects) o.y *= ry;
+      for (const f of floaters) { f.y *= ry; f.x *= laneW / oldLaneW; }
+      distSinceRow *= ry;
+      player.x = laneCenter(player.lane);
+      player.startX = player.targetX = player.x;
+      player.slideT = SLIDE_TIME;
+    }
+  }
+
+  // ===========================================================================
+  // GAME STATE
+  // ===========================================================================
+  // state: 'start' | 'playing' | 'dying' | 'gameover'
+  let state = 'start';
+  let score = 0;
+  let lives = MAX_LIVES;
+  let speed = START_SPEED;      // fraction of H per second
+  let playTime = 0;
+  let scroll = 0;               // total background scroll distance (px)
+  let distSinceRow = 0;
+  let objects = [];             // obstacles and coins
+  let floaters = [];            // "+10" popups
+  let hitFlash = 0;             // red screen flash timer
+  let stateTimer = 0;           // time spent in the current state
+  let globalTime = 0;
+
+  const player = {
+    lane: 1,
+    x: 0,
+    startX: 0,
+    targetX: 0,
+    slideT: SLIDE_TIME,
+    runT: 0,
+    invT: 0,
+    deathT: 0,
+  };
+
+  function resetGame() {
+    score = 0;
+    lives = MAX_LIVES;
+    speed = START_SPEED;
+    playTime = 0;
+    distSinceRow = 0;
+    objects = [];
+    floaters = [];
+    hitFlash = 0;
+    player.lane = 1;
+    player.x = player.startX = player.targetX = laneCenter(1);
+    player.slideT = SLIDE_TIME;
+    player.invT = 0;
+    player.deathT = 0;
+    player.runT = 0;
+  }
+
+  function setState(s) {
+    state = s;
+    stateTimer = 0;
+  }
+
+  function startGame() {
+    resetGame();
+    setState('playing');
+  }
+
+  // ===========================================================================
+  // INPUT: KEYBOARD, TOUCH (SWIPE / TAP), MOUSE
+  // ===========================================================================
+  function moveLane(dir) {
+    if (state !== 'playing') return;
+    const newLane = Math.max(0, Math.min(LANES - 1, player.lane + dir));
+    if (newLane === player.lane) return;
+    player.lane = newLane;
+    player.startX = player.x;            // slide from wherever we are now
+    player.targetX = laneCenter(newLane);
+    player.slideT = 0;
+  }
+
+  function pressStart() {
+    if (state === 'start') startGame();
+    else if (state === 'gameover' && stateTimer > 0.4) startGame();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    switch (e.code) {
+      case 'ArrowLeft':
+      case 'KeyA':
+        moveLane(-1);
+        e.preventDefault();
+        break;
+      case 'ArrowRight':
+      case 'KeyD':
+        moveLane(1);
+        e.preventDefault();
+        break;
+      case 'Space':
+        pressStart();
+        e.preventDefault();
+        break;
+    }
+  });
+
+  // Tap/click handling uses game-area coordinates.
+  function handleTap(clientX, clientY) {
+    const gx = clientX - offsetX;
+    const gy = clientY;
+    if (state === 'start') {
+      startGame();
+    } else if (state === 'gameover' && stateTimer > 0.4) {
+      const b = playAgainButton();
+      if (gx >= b.x && gx <= b.x + b.w && gy >= b.y && gy <= b.y + b.h) startGame();
+    }
+  }
+
+  let touchStart = null;
+  const SWIPE_MIN = 30;
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (!touchStart) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) {
+      moveLane(dx > 0 ? 1 : -1);
+    } else if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) {
+      handleTap(t.clientX, t.clientY);
+    }
+    touchStart = null;
+  }, { passive: false });
+
+  // Mouse clicks (desktop) for start screen and Play Again button.
+  canvas.addEventListener('mousedown', (e) => {
+    handleTap(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('resize', resize);
+
+  // ===========================================================================
+  // SPAWNING: OBSTACLE & COIN ROWS
+  // ===========================================================================
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function makeObstacle(lane, y) {
+    const type = Math.random() < 0.5 ? 'audit' : 'paper';
+    return {
+      kind: 'obstacle',
+      type,
+      lane,
+      y,
+      phase: Math.random() * Math.PI * 2,
+      // small per-sheet jitter for the paperwork stack
+      jitter: [0, 1, 2, 3, 4].map(() => (Math.random() - 0.5) * 6),
+    };
+  }
+
+  function makeCoin(lane, y) {
+    return { kind: 'coin', lane, y, phase: Math.random() * Math.PI * 2 };
+  }
+
+  function spawnRow() {
+    const spawnY = -50 * u;
+    const lanes = shuffle([0, 1, 2]);
+
+    // Difficulty: chance of a 2-obstacle row grows with speed.
+    const difficulty = (speed - START_SPEED) / (MAX_SPEED - START_SPEED);
+    const roll = Math.random();
+
+    if (roll < 0.22) {
+      // Coin-only row: a short trail of coins in one lane.
+      const lane = lanes[0];
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) objects.push(makeCoin(lane, spawnY - i * 40 * u));
+      return;
+    }
+
+    // Obstacle row: 1 or 2 obstacles, NEVER all 3 lanes.
+    const numObstacles = Math.random() < 0.3 + 0.35 * difficulty ? 2 : 1;
+    const blocked = lanes.slice(0, numObstacles);
+    const open = lanes.slice(numObstacles);
+    for (const lane of blocked) objects.push(makeObstacle(lane, spawnY));
+
+    // Sometimes reward the open lane with a coin.
+    if (Math.random() < 0.55) {
+      const lane = open[Math.floor(Math.random() * open.length)];
+      objects.push(makeCoin(lane, spawnY));
+    }
+  }
+
+  // ===========================================================================
+  // UPDATE LOGIC
+  // ===========================================================================
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function updatePlayerSlide(dt) {
+    if (player.slideT < SLIDE_TIME) {
+      player.slideT = Math.min(SLIDE_TIME, player.slideT + dt);
+      const t = easeOutCubic(player.slideT / SLIDE_TIME);
+      player.x = player.startX + (player.targetX - player.startX) * t;
+    } else {
+      player.x = player.targetX;
+    }
+  }
+
+  // Hitbox helpers (half sizes, in px)
+  function obstacleBox(o) {
+    return { x: laneCenter(o.lane), y: o.y, hw: 24 * u, hh: 20 * u };
+  }
+
+  function playerBox() {
+    const base = playerBaseY();
+    return { x: player.x, y: base - 38 * u, hw: 15 * u, hh: 34 * u };
+  }
+
+  function overlaps(a, b) {
+    return Math.abs(a.x - b.x) < a.hw + b.hw && Math.abs(a.y - b.y) < a.hh + b.hh;
+  }
+
+  function hitPlayer() {
+    lives -= 1;
+    hitFlash = 0.25;
+    if (lives <= 0) {
+      lives = 0;
+      player.deathT = 0;
+      setState('dying');
+    } else {
+      player.invT = INVINCIBLE_TIME;
+    }
+  }
+
+  function update(dt) {
+    globalTime += dt;
+    stateTimer += dt;
+    hitFlash = Math.max(0, hitFlash - dt);
+
+    // Floating score popups always animate.
+    for (const f of floaters) { f.y -= 40 * u * dt; f.life -= dt; }
+    floaters = floaters.filter((f) => f.life > 0);
+
+    if (state === 'start') {
+      // Gentle idle scroll on the title screen.
+      scroll += H * 0.2 * dt;
+      player.runT += dt;
+      return;
+    }
+
+    if (state === 'dying') {
+      player.deathT += dt;
+      if (player.deathT >= DEATH_ANIM_TIME + 0.4) setState('gameover');
+      return;
+    }
+
+    if (state !== 'playing') return;
+
+    // --- Speed ramp (capped) ---
+    playTime += dt;
+    speed = Math.min(MAX_SPEED, START_SPEED + playTime * SPEED_RAMP);
+    const pxSpeed = speed * H;
+
+    // --- Scroll world ---
+    const dy = pxSpeed * dt;
+    scroll += dy;
+    distSinceRow += dy;
+
+    const rowGap = Math.max(H * 0.28, pxSpeed * ROW_TIME);
+    if (distSinceRow >= rowGap) {
+      distSinceRow -= rowGap;
+      spawnRow();
+    }
+
+    // --- Player ---
+    updatePlayerSlide(dt);
+    player.runT += dt * (0.8 + speed);
+    player.invT = Math.max(0, player.invT - dt);
+
+    // --- Objects & collisions ---
+    const pb = playerBox();
+    for (const o of objects) {
+      o.y += dy;
+      if (o.dead) continue;
+      if (o.kind === 'coin') {
+        const cb = { x: laneCenter(o.lane), y: o.y, hw: 13 * u, hh: 13 * u };
+        if (overlaps(pb, cb)) {
+          o.dead = true;
+          score += COIN_POINTS;
+          floaters.push({ x: cb.x, y: cb.y, text: '+' + COIN_POINTS, life: 0.8 });
+        }
+      } else if (player.invT <= 0 && state === 'playing') {
+        if (overlaps(pb, obstacleBox(o))) {
+          o.dead = true;
+          hitPlayer();
+        }
+      }
+    }
+    objects = objects.filter((o) => !(o.dead && o.kind === 'coin') && o.y < H + 80 * u);
+  }
+
+  // ===========================================================================
+  // DRAWING: BACKGROUND (LEDGER PAPER)
+  // ===========================================================================
+  function drawBackground() {
+    ctx.fillStyle = COLORS.ledger;
+    ctx.fillRect(0, 0, W, H);
+
+    // Horizontal ruled lines, every 5th line a bit darker, scrolling down.
+    const gap = Math.max(16, 22 * u);
+    const period = gap * 5;
+    const off = scroll % period;
+    let idx = 0;
+    for (let y = off - period; y < H + gap; y += gap, idx++) {
+      ctx.fillStyle = idx % 5 === 0 ? COLORS.ruleDark : COLORS.ruleLight;
+      ctx.fillRect(0, Math.round(y), W, idx % 5 === 0 ? 2 : 1);
+    }
+
+    // Faint ledger column margins near each edge.
+    ctx.fillStyle = COLORS.ruleDark;
+    ctx.fillRect(Math.round(8 * u), 0, 1, H);
+    ctx.fillRect(Math.round(11 * u), 0, 1, H);
+    ctx.fillRect(Math.round(W - 11 * u), 0, 1, H);
+    ctx.fillRect(Math.round(W - 8 * u), 0, 1, H);
+
+    // Dashed lane dividers.
+    ctx.save();
+    ctx.strokeStyle = COLORS.green;
+    ctx.lineWidth = Math.max(2, 3 * u);
+    const dash = 20 * u, space = 16 * u;
+    ctx.setLineDash([dash, space]);
+    ctx.lineDashOffset = -(scroll % (dash + space));
+    ctx.globalAlpha = 0.7;
+    for (let i = 1; i < LANES; i++) {
+      const x = Math.round(laneW * i);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ===========================================================================
+  // DRAWING: PLAYER (THE ACCOUNTANT)
+  // ===========================================================================
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // Draws the accountant with feet at (0, 0) in the current transform.
+  // frame: 0 or 1 for the two-frame running animation.
+  function drawAccountant(frame, showShadow) {
+    const s = u;
+
+    // Shadow
+    if (showShadow) {
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(0, 2 * s, 20 * s, 6 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Legs (alternate which leg is lifted)
+    const legTop = -24 * s;
+    const leftLen = frame === 0 ? 24 : 16;
+    const rightLen = frame === 0 ? 16 : 24;
+    ctx.fillStyle = COLORS.navy;
+    roundRect(-10 * s, legTop, 8 * s, leftLen * s, 3 * s); ctx.fill();
+    roundRect(2 * s, legTop, 8 * s, rightLen * s, 3 * s); ctx.fill();
+    // Shoes
+    ctx.fillStyle = '#3e2723';
+    roundRect(-11 * s, legTop + leftLen * s - 4 * s, 10 * s, 5 * s, 2 * s); ctx.fill();
+    roundRect(1 * s, legTop + rightLen * s - 4 * s, 10 * s, 5 * s, 2 * s); ctx.fill();
+
+    // Arms swing opposite to legs
+    const armSwing = frame === 0 ? -3 : 3;
+    ctx.fillStyle = COLORS.white;
+    ctx.strokeStyle = '#cfd8dc';
+    ctx.lineWidth = 1.2 * s;
+    roundRect(-21 * s, -50 * s + armSwing * s, 7 * s, 20 * s, 3 * s); ctx.fill(); ctx.stroke();
+    roundRect(14 * s, -50 * s - armSwing * s, 7 * s, 20 * s, 3 * s); ctx.fill(); ctx.stroke();
+    // Hands
+    ctx.fillStyle = COLORS.skin;
+    ctx.beginPath(); ctx.arc(-17.5 * s, -28 * s + armSwing * s, 3.8 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(17.5 * s, -28 * s - armSwing * s, 3.8 * s, 0, Math.PI * 2); ctx.fill();
+
+    // Body (white shirt)
+    ctx.fillStyle = COLORS.white;
+    ctx.strokeStyle = '#cfd8dc';
+    roundRect(-15 * s, -52 * s, 30 * s, 30 * s, 6 * s);
+    ctx.fill(); ctx.stroke();
+
+    // Belt
+    ctx.fillStyle = COLORS.navy;
+    ctx.fillRect(-15 * s, -26 * s, 30 * s, 4 * s);
+
+    // Collar
+    ctx.fillStyle = COLORS.white;
+    ctx.strokeStyle = '#b0bec5';
+    ctx.beginPath();
+    ctx.moveTo(-7 * s, -52 * s); ctx.lineTo(0, -46 * s); ctx.lineTo(-3 * s, -43 * s); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(7 * s, -52 * s); ctx.lineTo(0, -46 * s); ctx.lineTo(3 * s, -43 * s); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Red tie: knot + long blade
+    ctx.fillStyle = COLORS.red;
+    ctx.beginPath();
+    ctx.moveTo(-2.5 * s, -47 * s); ctx.lineTo(2.5 * s, -47 * s);
+    ctx.lineTo(1.8 * s, -43 * s); ctx.lineTo(-1.8 * s, -43 * s);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-1.8 * s, -43 * s);
+    ctx.lineTo(1.8 * s, -43 * s);
+    ctx.lineTo(4 * s, -31 * s);
+    ctx.lineTo(0, -27 * s);
+    ctx.lineTo(-4 * s, -31 * s);
+    ctx.closePath(); ctx.fill();
+
+    // Head
+    const headY = -66 * s;
+    ctx.fillStyle = COLORS.skin;
+    ctx.beginPath(); ctx.arc(0, headY, 15 * s, 0, Math.PI * 2); ctx.fill();
+
+    // Hair peeking out at the sides
+    ctx.fillStyle = '#5d4037';
+    ctx.beginPath(); ctx.arc(-13 * s, headY - 3 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(13 * s, headY - 3 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
+
+    // Green visor: band around the head + translucent brim
+    ctx.fillStyle = COLORS.green;
+    ctx.beginPath();
+    ctx.arc(0, headY, 15.5 * s, Math.PI * 1.08, Math.PI * 1.92);
+    ctx.lineTo(13 * s, headY - 5 * s);
+    ctx.lineTo(-13 * s, headY - 5 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(67,160,71,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(0, headY - 5 * s, 18 * s, 4.5 * s, 0, 0, Math.PI);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.green;
+    ctx.lineWidth = 1.2 * s;
+    ctx.stroke();
+
+    // Round glasses
+    const gy = headY + 2 * s;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.strokeStyle = COLORS.navy;
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath(); ctx.arc(-6 * s, gy, 4.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(6 * s, gy, 4.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-1.4 * s, gy); ctx.lineTo(1.4 * s, gy); ctx.stroke();
+    // Eyes
+    ctx.fillStyle = COLORS.navy;
+    ctx.beginPath(); ctx.arc(-6 * s, gy + 0.5 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6 * s, gy + 0.5 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+
+    // Rosy cheeks + smile
+    ctx.fillStyle = 'rgba(229,57,53,0.25)';
+    ctx.beginPath(); ctx.arc(-10 * s, headY + 8 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(10 * s, headY + 8 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = COLORS.navy;
+    ctx.lineWidth = 1.4 * s;
+    ctx.beginPath(); ctx.arc(0, headY + 7 * s, 3.5 * s, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+  }
+
+  function drawPlayer() {
+    const baseY = playerBaseY();
+    const frame = Math.floor(player.runT * 8) % 2;
+
+    ctx.save();
+    ctx.translate(player.x, baseY);
+
+    if (state === 'dying' || state === 'gameover') {
+      // Spin a couple of times, then topple onto the side.
+      const t = Math.min(1, player.deathT / DEATH_ANIM_TIME);
+      const e = easeOutCubic(t);
+      const angle = e * (Math.PI * 4 + Math.PI / 2);
+      ctx.translate(0, -36 * u);
+      ctx.rotate(angle);
+      ctx.translate(0, 36 * u + e * 10 * u);
+      drawAccountant(0, false);
+    } else {
+      // Flash while invincible.
+      if (player.invT > 0 && Math.floor(player.invT * 12) % 2 === 0) ctx.globalAlpha = 0.3;
+      drawAccountant(state === 'playing' || state === 'start' ? frame : 0, true);
+    }
+    ctx.restore();
+  }
+
+  // ===========================================================================
+  // DRAWING: OBSTACLES & COINS
+  // ===========================================================================
+  function drawAuditFlag(x, y, phase) {
+    const s = u;
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Base / stand
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(0, 22 * s, 26 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#546e7a';
+    ctx.beginPath(); ctx.ellipse(-22 * s, 20 * s, 7 * s, 3.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Pole
+    ctx.fillStyle = '#78909c';
+    ctx.fillRect(-23.5 * s, -30 * s, 3 * s, 51 * s);
+    ctx.fillStyle = COLORS.gold;
+    ctx.beginPath(); ctx.arc(-22 * s, -31 * s, 3 * s, 0, Math.PI * 2); ctx.fill();
+
+    // Waving red flag
+    const wave = Math.sin(globalTime * 6 + phase) * 3 * s;
+    const left = -20.5 * s, right = 26 * s, top = -28 * s, bottom = 0;
+    ctx.fillStyle = COLORS.red;
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.quadraticCurveTo((left + right) / 2, top + wave, right, top - wave * 0.5);
+    ctx.lineTo(right, bottom - wave * 0.5);
+    ctx.quadraticCurveTo((left + right) / 2, bottom + wave, left, bottom);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#b71c1c';
+    ctx.lineWidth = 1.2 * s;
+    ctx.stroke();
+
+    // "AUDIT" text
+    ctx.fillStyle = COLORS.white;
+    ctx.font = `bold ${Math.round(11 * s)}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('AUDIT', (left + right) / 2, (top + bottom) / 2 + wave * 0.3);
+    ctx.restore();
+  }
+
+  function drawPaperStack(x, y, jitter) {
+    const s = u;
+    ctx.save();
+    ctx.translate(x, y);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(0, 20 * s, 28 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+    const sheetW = 46 * s, sheetH = 30 * s;
+    const sheets = 5;
+    for (let i = 0; i < sheets; i++) {
+      const sy = 4 * s - i * 4.5 * s;
+      const sx = jitter[i] * s;
+      ctx.fillStyle = i % 2 === 0 ? COLORS.paper : '#eceff1';
+      ctx.strokeStyle = COLORS.paperEdge;
+      ctx.lineWidth = 1 * s;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(jitter[i] * 0.012);
+      ctx.fillRect(-sheetW / 2, -sheetH / 2, sheetW, sheetH);
+      ctx.strokeRect(-sheetW / 2, -sheetH / 2, sheetW, sheetH);
+      if (i === sheets - 1) {
+        // Ruled lines on the top sheet
+        ctx.strokeStyle = '#90a4ae';
+        ctx.lineWidth = 1.2 * s;
+        for (let l = 0; l < 4; l++) {
+          const ly = -sheetH / 2 + 7 * s + l * 5.5 * s;
+          ctx.beginPath();
+          ctx.moveTo(-sheetW / 2 + 6 * s, ly);
+          ctx.lineTo(sheetW / 2 - (l === 3 ? 18 : 6) * s, ly);
+          ctx.stroke();
+        }
+        // Red "overdue" stamp mark
+        ctx.strokeStyle = COLORS.red;
+        ctx.lineWidth = 1.5 * s;
+        ctx.beginPath(); ctx.arc(sheetW / 2 - 10 * s, sheetH / 2 - 8 * s, 5 * s, 0, Math.PI * 2); ctx.stroke();
+        // Binder clip
+        ctx.fillStyle = '#37474f';
+        ctx.fillRect(-5 * s, -sheetH / 2 - 3 * s, 10 * s, 5 * s);
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawCoin(x, y, phase) {
+    const s = u;
+    const r = 13 * s;
+    const squash = 0.55 + 0.45 * Math.abs(Math.cos(globalTime * 3 + phase));
+    ctx.save();
+    ctx.translate(x, y);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath(); ctx.ellipse(0, r + 3 * s, r * 0.8 * squash, 3 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.scale(squash, 1);
+    ctx.fillStyle = COLORS.goldDark;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = COLORS.gold;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.84, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.35, r * 0.25, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#8d5a00';
+    ctx.font = `bold ${Math.round(16 * s)}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', 0, 1 * s);
+    ctx.restore();
+  }
+
+  function drawObjects() {
+    for (const o of objects) {
+      if (o.dead && o.kind === 'coin') continue;
+      const x = laneCenter(o.lane);
+      if (o.kind === 'coin') {
+        drawCoin(x, o.y, o.phase);
+      } else {
+        ctx.save();
+        if (o.dead) ctx.globalAlpha = 0.45;   // the obstacle we bumped into
+        if (o.type === 'audit') drawAuditFlag(x, o.y, o.phase);
+        else drawPaperStack(x, o.y, o.jitter);
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawFloaters() {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${Math.round(18 * u)}px ${FONT}`;
+    for (const f of floaters) {
+      ctx.globalAlpha = Math.max(0, f.life / 0.8);
+      ctx.fillStyle = COLORS.goldDark;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.restore();
+  }
+
+  // ===========================================================================
+  // DRAWING: HUD (HEARTS & SCORE)
+  // ===========================================================================
+  function drawHeart(x, y, size, filled) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    ctx.moveTo(0, size * 0.3);
+    ctx.bezierCurveTo(-size * 0.05, size * 0.2, -size * 0.5, size * 0.0, -size * 0.5, -size * 0.2);
+    ctx.bezierCurveTo(-size * 0.5, -size * 0.5, -size * 0.1, -size * 0.55, 0, -size * 0.25);
+    ctx.bezierCurveTo(size * 0.1, -size * 0.55, size * 0.5, -size * 0.5, size * 0.5, -size * 0.2);
+    ctx.bezierCurveTo(size * 0.5, size * 0.0, size * 0.05, size * 0.2, 0, size * 0.3);
+    ctx.closePath();
+    if (filled) {
+      ctx.fillStyle = COLORS.red;
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath(); ctx.arc(-size * 0.25, -size * 0.25, size * 0.09, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = 'rgba(30,42,74,0.15)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(30,42,74,0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawHUD() {
+    const pad = 12;
+    const size = Math.max(22, 28 * u);
+
+    // Hearts, top-left
+    for (let i = 0; i < MAX_LIVES; i++) {
+      drawHeart(pad + size / 2 + i * (size + 6), pad + size / 2 + 2, size, i < lives);
+    }
+
+    // Score, top-right on a pill
+    const text = 'Score: ' + score;
+    ctx.font = `bold ${Math.round(Math.max(16, 20 * u))}px ${FONT}`;
+    const tw = ctx.measureText(text).width;
+    const ph = Math.max(28, 32 * u);
+    const pw = tw + 24;
+    ctx.fillStyle = 'rgba(30,42,74,0.88)';
+    roundRect(W - pad - pw, pad, pw, ph, ph / 2);
+    ctx.fill();
+    ctx.fillStyle = COLORS.white;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, W - pad - pw / 2, pad + ph / 2 + 1);
+  }
+
+  // ===========================================================================
+  // DRAWING: SCREENS (START & GAME OVER)
+  // ===========================================================================
+  // Wraps text to fit maxWidth; returns the y after the last line.
+  // Pass draw = false to only measure.
+  function wrapText(text, x, y, maxWidth, lineHeight, draw = true) {
+    const words = text.split(' ');
+    let line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        if (draw) ctx.fillText(line, x, y);
+        line = word;
+        y += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    if (line) { if (draw) ctx.fillText(line, x, y); y += lineHeight; }
+    return y;
+  }
+
+  const HOW_TO_LINES = [
+    'Use ← → or A / D (swipe on mobile) to switch lanes.',
+    'Dodge AUDIT flags and paperwork. Grab $ coins for 10 points!',
+  ];
+
+  // Lays out the start screen text; with draw = false it only returns the bottom y.
+  function layoutStartText(cx, py, panelW, draw) {
+    // Shrink the title until it fits inside the panel.
+    let titleSize = 64;
+    ctx.font = `900 ${titleSize}px ${FONT}`;
+    const fit = (panelW - 36) / ctx.measureText('Debit Dash').width;
+    if (fit < 1) titleSize = Math.floor(titleSize * fit);
+    if (draw) {
+      ctx.font = `900 ${titleSize}px ${FONT}`;
+      ctx.fillStyle = COLORS.gold;
+      ctx.fillText('Debit Dash', cx + 3, py + titleSize * 0.95 + 3);
+      ctx.fillStyle = COLORS.navy;
+      ctx.fillText('Debit Dash', cx, py + titleSize * 0.95);
+    }
+
+    // Divider rule under the title
+    let y = py + titleSize * 1.75;
+    if (draw) {
+      ctx.fillStyle = COLORS.green;
+      ctx.fillRect(cx - panelW * 0.3, y - 1, panelW * 0.6, 2);
+    }
+
+    // How to play
+    y += 26;
+    const bodySize = Math.max(14, Math.min(18, panelW / 22));
+    if (draw) {
+      ctx.font = `bold ${Math.round(bodySize)}px ${FONT}`;
+      ctx.fillStyle = COLORS.green;
+      ctx.fillText('How to play', cx, y);
+    }
+    y += bodySize * 1.6;
+    ctx.font = `${Math.round(bodySize)}px ${FONT}`;
+    ctx.fillStyle = COLORS.navy;
+    for (const line of HOW_TO_LINES) {
+      y = wrapText(line, cx, y, panelW - 40, bodySize * 1.4, draw) + 4;
+    }
+
+    // Blinking prompt
+    y += bodySize * 1.1;
+    if (draw && Math.floor(globalTime * 2) % 2 === 0) {
+      ctx.font = `bold ${Math.round(bodySize + 2)}px ${FONT}`;
+      ctx.fillStyle = COLORS.red;
+      ctx.fillText('Press Space or Tap to Start', cx, y);
+    }
+    return y + bodySize * 1.6;
+  }
+
+  function drawStartScreen() {
+    const cx = W / 2;
+    const panelW = Math.min(W - 32, 420);
+    const px = cx - panelW / 2;
+    const py = Math.max(20, H * 0.12);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const bottom = layoutStartText(cx, py, panelW, false);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    roundRect(px, py, panelW, bottom - py, 18);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.green;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    layoutStartText(cx, py, panelW, true);
+  }
+
+  function playAgainButton() {
+    const w = Math.min(220, W - 80);
+    const h = 54;
+    return { x: W / 2 - w / 2, y: H / 2 + 50, w, h };
+  }
+
+  function drawGameOverScreen() {
+    const cx = W / 2;
+
+    ctx.fillStyle = 'rgba(30,42,74,0.6)';
+    ctx.fillRect(0, 0, W, H);
+
+    const panelW = Math.min(W - 32, 380);
+    const panelH = 290;
+    const px = cx - panelW / 2;
+    const py = H / 2 - 150;
+    ctx.fillStyle = COLORS.white;
+    roundRect(px, py, panelW, panelH, 18);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.red;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `900 ${Math.round(Math.min(48, panelW / 6.5))}px ${FONT}`;
+    ctx.fillStyle = COLORS.red;
+    ctx.fillText('Game Over', cx, py + 55);
+
+    ctx.font = `bold 24px ${FONT}`;
+    ctx.fillStyle = COLORS.navy;
+    ctx.fillText('Score: ' + score, cx, py + 115);
+
+    const b = playAgainButton();
+    const pulse = 1 + Math.sin(globalTime * 4) * 0.03;
+    ctx.save();
+    ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = COLORS.goldDark;
+    roundRect(-b.w / 2, -b.h / 2 + 4, b.w, b.h, 14); ctx.fill();
+    ctx.fillStyle = COLORS.gold;
+    roundRect(-b.w / 2, -b.h / 2, b.w, b.h, 14); ctx.fill();
+    ctx.fillStyle = COLORS.navy;
+    ctx.font = `bold 22px ${FONT}`;
+    ctx.fillText('Play Again', 0, 1);
+    ctx.restore();
+
+    ctx.font = `14px ${FONT}`;
+    ctx.fillStyle = 'rgba(30,42,74,0.7)';
+    ctx.fillText('or press Space', cx, b.y + b.h + 24);
+  }
+
+  // ===========================================================================
+  // MAIN RENDER
+  // ===========================================================================
+  function render() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Navy surround outside the game area.
+    ctx.fillStyle = COLORS.navy;
+    ctx.fillRect(0, 0, viewW, viewH);
+
+    // Everything else draws inside the clipped, centered game area.
+    ctx.save();
+    ctx.translate(offsetX, 0);
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+
+    drawBackground();
+    drawObjects();
+    drawPlayer();
+    drawFloaters();
+
+    if (hitFlash > 0) {
+      ctx.fillStyle = `rgba(229,57,53,${(hitFlash / 0.25) * 0.3})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    if (state === 'start') {
+      drawStartScreen();
+    } else {
+      drawHUD();
+      if (state === 'gameover') drawGameOverScreen();
+    }
+
+    ctx.restore();
+  }
+
+  // ===========================================================================
+  // GAME LOOP
+  // ===========================================================================
+  let lastTime = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000); // clamp big gaps (tab switch)
+    lastTime = now;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  resetGame();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
