@@ -55,6 +55,7 @@
   const MAX_LIVES = 3;
   const INVINCIBLE_TIME = 1.5;  // seconds of invulnerability after a hit
   const COIN_POINTS = 10;
+  const DISTANCE_POINTS = 4;    // points per (game-area height) traveled, so faster = more points/sec
   const DEATH_ANIM_TIME = 1.4;  // seconds the spin-and-fall lasts
 
   // Speeds are expressed as a fraction of the game area height per second,
@@ -121,6 +122,7 @@
   // state: 'start' | 'playing' | 'dying' | 'gameover'
   let state = 'start';
   let score = 0;
+  let distancePoints = 0;       // fractional points from distance, folded into score
   let lives = MAX_LIVES;
   let speed = START_SPEED;      // fraction of H per second
   let playTime = 0;
@@ -145,6 +147,7 @@
 
   function resetGame() {
     score = 0;
+    distancePoints = 0;
     lives = MAX_LIVES;
     speed = START_SPEED;
     playTime = 0;
@@ -381,6 +384,12 @@
     playTime += dt;
     speed = Math.min(MAX_SPEED, START_SPEED + playTime * SPEED_RAMP);
     const pxSpeed = speed * H;
+
+    // --- Distance points (whole points move into the score) ---
+    distancePoints += speed * dt * DISTANCE_POINTS;
+    const earned = Math.floor(distancePoints);
+    score += earned;
+    distancePoints -= earned;
 
     // --- Scroll world ---
     const dy = pxSpeed * dt;
@@ -838,7 +847,7 @@
 
   const HOW_TO_LINES = [
     'Use ← → or A / D (swipe on mobile) to switch lanes.',
-    'Dodge AUDIT flags and paperwork. Grab $ coins for 10 points!',
+    'Dodge AUDIT flags and paperwork. Distance scores points, and $ coins are +10!',
   ];
 
   // Lays out the start screen text; with draw = false it only returns the bottom y.
