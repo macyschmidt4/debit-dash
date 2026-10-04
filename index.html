@@ -55,16 +55,28 @@
   const MAX_LIVES = 3;
   const INVINCIBLE_TIME = 1.5;  // seconds of invulnerability after a hit
   const COIN_POINTS = 10;
+  const COIN_RADIUS = 13;       // in drawing units (u)
   const DISTANCE_POINTS = 4;    // points per (game-area height) traveled, so faster = more points/sec
   const DEATH_ANIM_TIME = 1.4;  // seconds the spin-and-fall lasts
 
   // Speeds are expressed as a fraction of the game area height per second,
   // so the game feels the same on short and tall screens.
-  const START_SPEED = 0.25;
+  const START_SPEED = 0.35;      // 70% of the original 0.5 starting speed
   const MAX_SPEED = 0.5;
   const RAMP_SECONDS = 90;      // time to go from start speed to max speed
   const SPEED_RAMP = (MAX_SPEED - START_SPEED) / RAMP_SECONDS; // speed gained per second
   const ROW_TIME = 0.75;        // seconds between spawn rows (at any speed)
+
+  // Fair spacing: after one obstacle row fully passes the player, there must be
+  // at least this much clear running time before the next row reaches them.
+  // A two-lane move takes ~0.3s (two quick presses + 0.15s slide), so this
+  // leaves comfortable margin even at top speed.
+  const CLEAR_TIME = 0.55;
+
+  // Obstacle tiles: rounded squares that fit inside one lane with padding.
+  const TILE_LANE_FRAC = 0.72;  // tile width as a fraction of lane width
+  const TILE_MAX = 66;          // max tile size, in drawing units (u)
+  const HITBOX_SCALE = 0.88;    // hitbox is slightly smaller than the tile
 
   // ===========================================================================
   // CANVAS SETUP & RESIZING
@@ -129,6 +141,7 @@
   let playTime = 0;
   let scroll = 0;               // total background scroll distance (px)
   let distSinceRow = 0;
+  let lastOpenLanes = null;     // open lanes of the previous obstacle row
   let objects = [];             // obstacles and coins
   let floaters = [];            // "+10" popups
   let hitFlash = 0;             // red screen flash timer
@@ -153,6 +166,7 @@
     speed = START_SPEED;
     playTime = 0;
     distSinceRow = 0;
+    lastOpenLanes = null;
     objects = [];
     floaters = [];
     hitFlash = 0;
@@ -271,48 +285,61 @@
   function makeObstacle(lane, y) {
     const types = ['paper', 'error', 'scale'];
     const type = types[Math.floor(Math.random() * types.length)];
-    return {
-      kind: 'obstacle',
-      type,
-      lane,
-      y,
-      phase: Math.random() * Math.PI * 2,
-      // small per-sheet jitter for the paperwork stack
-      jitter: [0, 1, 2, 3, 4].map(() => (Math.random() - 0.5) * 6),
-    };
+    return { kind: 'obstacle', type, lane, y, phase: Math.random() * Math.PI * 2 };
   }
 
   function makeCoin(lane, y) {
     return { kind: 'coin', lane, y, phase: Math.random() * Math.PI * 2 };
   }
 
+  function pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
   function spawnRow() {
-    const spawnY = -50 * u;
-    const lanes = shuffle([0, 1, 2]);
+    const spawnY = -TILE_MAX * u;
 
     // Difficulty: chance of a 2-obstacle row grows with speed.
     const difficulty = (speed - START_SPEED) / (MAX_SPEED - START_SPEED);
-    const roll = Math.random();
 
-    if (roll < 0.22) {
-      // Coin-only row: a short trail of coins in one lane.
-      const lane = lanes[0];
+    if (Math.random() < 0.22) {
+      // Coin-only row: a short trail of coins in one lane (above spawnY).
+      const lane = pick([0, 1, 2]);
       const count = 2 + Math.floor(Math.random() * 3);
       for (let i = 0; i < count; i++) objects.push(makeCoin(lane, spawnY - i * 40 * u));
+      lastOpenLanes = null;
       return;
     }
 
     // Obstacle row: 1 or 2 obstacles, NEVER all 3 lanes.
-    const numObstacles = Math.random() < 0.3 + 0.35 * difficulty ? 2 : 1;
-    const blocked = lanes.slice(0, numObstacles);
-    const open = lanes.slice(numObstacles);
+    let open;
+    if (Math.random() < 0.3 + 0.35 * difficulty) {
+      // Two obstacles leave a single open lane. If the previous row also had a
+      // single open lane on an edge, don't put this one on the opposite edge:
+      // the player never has to cross two lanes between back-to-back tight rows.
+      let candidates = [0, 1, 2];
+      if (lastOpenLanes && lastOpenLanes.length === 1 && lastOpenLanes[0] !== 1) {
+        candidates = [lastOpenLanes[0], 1];
+      }
+      open = [pick(candidates)];
+    } else {
+      const blockedLane = pick([0, 1, 2]);
+      open = [0, 1, 2].filter((l) => l !== blockedLane);
+    }
+    const blocked = [0, 1, 2].filter((l) => !open.includes(l));
+
+    // Coins never sit on obstacles: drop any coin (e.g. the tail of an earlier
+    // coin trail) that would overlap a tile in this row.
+    const clear = obstacleHalf() + COIN_RADIUS * u + 6 * u;
+    objects = objects.filter((o) =>
+      !(o.kind === 'coin' && blocked.includes(o.lane) && Math.abs(o.y - spawnY) < clear));
+
     for (const lane of blocked) objects.push(makeObstacle(lane, spawnY));
 
-    // Sometimes reward the open lane with a coin.
-    if (Math.random() < 0.55) {
-      const lane = open[Math.floor(Math.random() * open.length)];
-      objects.push(makeCoin(lane, spawnY));
-    }
+    // Sometimes reward an open lane with a coin.
+    if (Math.random() < 0.55) objects.push(makeCoin(pick(open), spawnY));
+
+    lastOpenLanes = open;
   }
 
   // ===========================================================================
@@ -332,14 +359,35 @@
     }
   }
 
+  // Tile size (px) for obstacles; always narrower than a lane.
+  function tileSize() {
+    return Math.min(laneW * TILE_LANE_FRAC, TILE_MAX * u);
+  }
+
+  // Half-size of an obstacle hitbox: matches the tile, slightly shrunk.
+  function obstacleHalf() {
+    return (tileSize() / 2) * HITBOX_SCALE;
+  }
+
   // Hitbox helpers (half sizes, in px)
   function obstacleBox(o) {
-    return { x: laneCenter(o.lane), y: o.y, hw: 24 * u, hh: 20 * u };
+    const h = obstacleHalf();
+    return { x: laneCenter(o.lane), y: o.y, hw: h, hh: h };
   }
 
   function playerBox() {
     const base = playerBaseY();
     return { x: player.x, y: base - 38 * u, hw: 15 * u, hh: 34 * u };
+  }
+
+  // Distance between rows (px). Guarantees CLEAR_TIME seconds of open running
+  // between one row's hitboxes fully passing the player and the next row's
+  // hitboxes reaching them. Uses a slightly higher speed than now so the
+  // gap stays safe while the game keeps speeding up.
+  function rowGapPx() {
+    const safeSpeed = Math.min(MAX_SPEED, speed + 0.02) * H;
+    const overlapSpan = 2 * obstacleHalf() + 2 * playerBox().hh;
+    return Math.max(H * 0.28, speed * H * ROW_TIME, overlapSpan + safeSpeed * CLEAR_TIME);
   }
 
   function overlaps(a, b) {
@@ -398,9 +446,8 @@
     scroll += dy;
     distSinceRow += dy;
 
-    const rowGap = Math.max(H * 0.28, pxSpeed * ROW_TIME);
-    if (distSinceRow >= rowGap) {
-      distSinceRow -= rowGap;
+    if (distSinceRow >= rowGapPx()) {
+      distSinceRow = 0;   // reset (not subtract) so rows are never closer than the gap
       spawnRow();
     }
 
@@ -415,7 +462,7 @@
       o.y += dy;
       if (o.dead) continue;
       if (o.kind === 'coin') {
-        const cb = { x: laneCenter(o.lane), y: o.y, hw: 13 * u, hh: 13 * u };
+        const cb = { x: laneCenter(o.lane), y: o.y, hw: COIN_RADIUS * u, hh: COIN_RADIUS * u };
         if (overlaps(pb, cb)) {
           o.dead = true;
           score += COIN_POINTS;
@@ -659,162 +706,141 @@
   // ===========================================================================
   // DRAWING: OBSTACLES & COINS
   // ===========================================================================
-  // A red "ERROR" ink stamp on the ledger, with the rubber stamp resting on it.
-  function drawErrorStamp(x, y, phase) {
-    const s = u;
+  // Every obstacle is a rounded square tile centered in its lane. The icon is
+  // drawn in a 100x100 box (-50..50) scaled to the tile and clipped to it, so
+  // nothing can ever spill past the tile or the lane.
+  const TILE_STYLES = {
+    paper: { bg: COLORS.navy, border: '#3f51b5' },
+    error: { bg: COLORS.white, border: COLORS.red },
+    scale: { bg: COLORS.green, border: '#1b5e20' },
+  };
+
+  function drawObstacleTile(o) {
+    const T = tileSize();
+    const x = laneCenter(o.lane);
+    const y = o.y;
+    const left = x - T / 2, top = y - T / 2;
+    const r = T * 0.18;
+    const lw = T * 0.05;
+    const style = TILE_STYLES[o.type];
+
     ctx.save();
+    // Drop shadow (offset straight down, so it stays inside the lane)
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    roundRect(left, top + T * 0.06, T, T, r);
+    ctx.fill();
+
+    // Tile body
+    ctx.fillStyle = style.bg;
+    roundRect(left, top, T, T, r);
+    ctx.fill();
+    ctx.clip();
+
+    // Border drawn inside the tile edge
+    ctx.strokeStyle = style.border;
+    ctx.lineWidth = lw;
+    roundRect(left + lw / 2, top + lw / 2, T - lw, T - lw, r - lw / 2);
+    ctx.stroke();
+
+    // Icon
     ctx.translate(x, y);
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.beginPath(); ctx.ellipse(0, 20 * s, 28 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
-
-    // Tilted ink impression: white card with a double red border + text
-    ctx.save();
-    ctx.rotate(-0.18);
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    roundRect(-27 * s, -14 * s, 54 * s, 28 * s, 4 * s); ctx.fill();
-    ctx.strokeStyle = COLORS.red;
-    ctx.lineWidth = 2.5 * s;
-    roundRect(-25 * s, -12 * s, 50 * s, 24 * s, 3 * s); ctx.stroke();
-    ctx.lineWidth = 1 * s;
-    roundRect(-22 * s, -9 * s, 44 * s, 18 * s, 2 * s); ctx.stroke();
-    ctx.fillStyle = COLORS.red;
-    ctx.font = `900 ${Math.round(11 * s)}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('ERROR', 0, 1 * s);
-    // Ink speckles for a stamped look
-    ctx.fillStyle = 'rgba(229,57,53,0.55)';
-    for (let i = 0; i < 4; i++) {
-      const a = phase + i * 1.7;
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * 24 * s, Math.sin(a) * 13 * s, 1.2 * s, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // The rubber stamp itself, bobbing slightly
-    const bob = Math.sin(globalTime * 4 + phase) * 1.5 * s;
-    ctx.translate(14 * s, -24 * s + bob);
-    ctx.fillStyle = '#b71c1c';                       // red rubber base
-    roundRect(-10 * s, 2 * s, 20 * s, 7 * s, 2 * s); ctx.fill();
-    ctx.fillStyle = '#6d4c41';                       // wooden neck
-    ctx.fillRect(-3 * s, -8 * s, 6 * s, 11 * s);
-    ctx.fillStyle = '#8d6e63';                       // round knob
-    ctx.beginPath(); ctx.arc(0, -10 * s, 6 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.beginPath(); ctx.arc(-2 * s, -12 * s, 2 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.scale(T / 100, T / 100);
+    if (o.type === 'paper') drawPaperIcon();
+    else if (o.type === 'error') drawErrorIcon();
+    else drawScaleIcon(o.phase);
     ctx.restore();
   }
 
-  // An unbalanced balance scale, tipped hard to one side.
-  function drawBalanceScale(x, y, phase) {
-    const s = u;
-    ctx.save();
-    ctx.translate(x, y);
+  // Icon: a stack of paperwork with a gold binder clip.
+  function drawPaperIcon() {
+    const sheets = [
+      { dx: 7, dy: -5, color: '#b0bec5' },
+      { dx: 3.5, dy: -2.5, color: '#cfd8dc' },
+      { dx: 0, dy: 0, color: COLORS.white },
+    ];
+    for (const sh of sheets) {
+      ctx.fillStyle = sh.color;
+      roundRect(-25 + sh.dx, -27 + sh.dy, 46, 58, 4);
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#90a4ae';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
+      const ly = -12 + i * 10;
+      ctx.beginPath();
+      ctx.moveTo(-17, ly);
+      ctx.lineTo(i === 3 ? 2 : 13, ly);
+      ctx.stroke();
+    }
+    ctx.fillStyle = COLORS.gold;
+    roundRect(-9, -32, 18, 9, 2);
+    ctx.fill();
+  }
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.beginPath(); ctx.ellipse(0, 22 * s, 26 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
+  // Icon: a tilted red "ERROR" stamp mark.
+  function drawErrorIcon() {
+    ctx.rotate(-0.2);
+    ctx.strokeStyle = COLORS.red;
+    ctx.lineWidth = 4;
+    roundRect(-36, -16, 72, 32, 4);
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    roundRect(-31, -11, 62, 22, 3);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.red;
+    ctx.font = `900 17px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ERROR', 0, 1);
+  }
 
-    // Base and post
-    ctx.fillStyle = COLORS.navy;
-    roundRect(-14 * s, 16 * s, 28 * s, 6 * s, 2 * s); ctx.fill();
-    ctx.fillRect(-2 * s, -20 * s, 4 * s, 37 * s);
+  // Icon: a balance scale tipped down on the left by a stack of coins.
+  function drawScaleIcon(phase) {
+    ctx.fillStyle = COLORS.white;
+    roundRect(-17, 30, 34, 7, 2); ctx.fill();          // base
+    ctx.fillRect(-3, -20, 6, 52);                       // post
 
-    // Tilted beam (tipped down on the left), with a small wobble
-    const tilt = -0.42 + Math.sin(globalTime * 3 + phase) * 0.04;
-    const half = 24 * s;
-    const pivotY = -20 * s;
+    const tilt = -0.4 + Math.sin(globalTime * 3 + phase) * 0.04;
+    const half = 27, pivotY = -20;
     const lx = -Math.cos(tilt) * half, ly = pivotY - Math.sin(tilt) * half;
     const rx = Math.cos(tilt) * half, ry = pivotY + Math.sin(tilt) * half;
-    ctx.strokeStyle = COLORS.goldDark;
-    ctx.lineWidth = 3 * s;
+    ctx.strokeStyle = COLORS.white;
+    ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(rx, ry); ctx.stroke();
     ctx.fillStyle = COLORS.gold;
-    ctx.beginPath(); ctx.arc(0, pivotY, 3.5 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, pivotY, 5, 0, Math.PI * 2); ctx.fill();
 
-    // Pans hang straight down from each end of the beam.
-    const drawPan = (px, py, load) => {
-      const drop = 14 * s;
-      ctx.strokeStyle = '#8d6e63';
-      ctx.lineWidth = 1 * s;
+    const drawPan = (px, py, loaded) => {
+      const drop = 17;
+      ctx.strokeStyle = COLORS.white;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(px, py); ctx.lineTo(px - 9 * s, py + drop);
-      ctx.moveTo(px, py); ctx.lineTo(px + 9 * s, py + drop);
+      ctx.moveTo(px, py); ctx.lineTo(px - 11, py + drop);
+      ctx.moveTo(px, py); ctx.lineTo(px + 11, py + drop);
       ctx.stroke();
-      if (load) {
-        // A heavy little stack of coins weighing this side down
+      if (loaded) {
         ctx.fillStyle = COLORS.goldDark;
         for (let i = 0; i < 3; i++) {
           ctx.beginPath();
-          ctx.ellipse(px, py + drop - 2 * s - i * 3 * s, 6 * s, 2.2 * s, 0, 0, Math.PI * 2);
+          ctx.ellipse(px, py + drop - 3 - i * 4, 7, 2.6, 0, 0, Math.PI * 2);
           ctx.fill();
         }
       }
       ctx.fillStyle = COLORS.gold;
-      ctx.strokeStyle = COLORS.goldDark;
-      ctx.lineWidth = 1.2 * s;
       ctx.beginPath();
-      ctx.ellipse(px, py + drop, 11 * s, 3.5 * s, 0, 0, Math.PI);
+      ctx.ellipse(px, py + drop, 13, 4.5, 0, 0, Math.PI);
       ctx.closePath();
-      ctx.fill(); ctx.stroke();
+      ctx.fill();
     };
     drawPan(lx, ly, true);
     drawPan(rx, ry, false);
-    ctx.restore();
-  }
-
-  function drawPaperStack(x, y, jitter) {
-    const s = u;
-    ctx.save();
-    ctx.translate(x, y);
-
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath(); ctx.ellipse(0, 20 * s, 28 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
-
-    const sheetW = 46 * s, sheetH = 30 * s;
-    const sheets = 5;
-    for (let i = 0; i < sheets; i++) {
-      const sy = 4 * s - i * 4.5 * s;
-      const sx = jitter[i] * s;
-      ctx.fillStyle = i % 2 === 0 ? COLORS.paper : '#eceff1';
-      ctx.strokeStyle = COLORS.paperEdge;
-      ctx.lineWidth = 1 * s;
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(jitter[i] * 0.012);
-      ctx.fillRect(-sheetW / 2, -sheetH / 2, sheetW, sheetH);
-      ctx.strokeRect(-sheetW / 2, -sheetH / 2, sheetW, sheetH);
-      if (i === sheets - 1) {
-        // Ruled lines on the top sheet
-        ctx.strokeStyle = '#90a4ae';
-        ctx.lineWidth = 1.2 * s;
-        for (let l = 0; l < 4; l++) {
-          const ly = -sheetH / 2 + 7 * s + l * 5.5 * s;
-          ctx.beginPath();
-          ctx.moveTo(-sheetW / 2 + 6 * s, ly);
-          ctx.lineTo(sheetW / 2 - (l === 3 ? 18 : 6) * s, ly);
-          ctx.stroke();
-        }
-        // Red "overdue" stamp mark
-        ctx.strokeStyle = COLORS.red;
-        ctx.lineWidth = 1.5 * s;
-        ctx.beginPath(); ctx.arc(sheetW / 2 - 10 * s, sheetH / 2 - 8 * s, 5 * s, 0, Math.PI * 2); ctx.stroke();
-        // Binder clip
-        ctx.fillStyle = '#37474f';
-        ctx.fillRect(-5 * s, -sheetH / 2 - 3 * s, 10 * s, 5 * s);
-      }
-      ctx.restore();
-    }
-    ctx.restore();
   }
 
   function drawCoin(x, y, phase) {
     const s = u;
-    const r = 13 * s;
+    const r = COIN_RADIUS * s;
     const squash = 0.55 + 0.45 * Math.abs(Math.cos(globalTime * 3 + phase));
     ctx.save();
     ctx.translate(x, y);
@@ -847,9 +873,7 @@
       } else {
         ctx.save();
         if (o.dead) ctx.globalAlpha = 0.45;   // the obstacle we bumped into
-        if (o.type === 'error') drawErrorStamp(x, o.y, o.phase);
-        else if (o.type === 'scale') drawBalanceScale(x, o.y, o.phase);
-        else drawPaperStack(x, o.y, o.jitter);
+        drawObstacleTile(o);
         ctx.restore();
       }
     }
