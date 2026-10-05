@@ -543,6 +543,7 @@
     H = viewH;
     offsetX = (viewW - W) / 2;
     laneW = W / LANES;
+    buildCity();
     u = Math.min(laneW / 100, H / 650);
 
     // Keep existing objects in proportion after a resize mid-game.
@@ -1890,128 +1891,195 @@
   }
 
   // ===========================================================================
-  // DRAWING: OFFICE SCENERY & SPEED LINES (visual only)
+  // DRAWING: CITY-AT-NIGHT BACKGROUND & SPEED LINES (visual only)
   // ===========================================================================
-  // Scenery items sit on a virtual track that scrolls with the world. Each
-  // slot's item type and position come from a hash of its index, so items stay
-  // put as they scroll without storing any state.
+  // Deterministic pseudo-random number in [0, 1) for a given seed.
   function hash01(n) {
     const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
     return x - Math.floor(x);
   }
 
-  // Each drawer draws one item centered at (0,0) in a 40x40 box.
-  const SCENERY = [
-    function plant() {
-      ctx.fillStyle = '#2e7d32';
-      for (const [lx, ly, a] of [[-7, -8, -0.6], [7, -8, 0.6], [0, -13, 0], [-11, -2, -1.1], [11, -2, 1.1]]) {
-        ctx.save(); ctx.translate(lx, ly); ctx.rotate(a);
-        ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 9, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
-      ctx.fillStyle = '#43a047';
-      ctx.beginPath(); ctx.ellipse(0, -6, 3.5, 7, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#c66a3d';
-      ctx.beginPath();
-      ctx.moveTo(-10, 2); ctx.lineTo(10, 2); ctx.lineTo(7, 18); ctx.lineTo(-7, 18);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#a5532d';
-      ctx.fillRect(-11, 1, 22, 4);
-    },
-    function mug() {
-      ctx.strokeStyle = '#eceff1';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(11, 2, 5, -Math.PI / 2, Math.PI / 2); ctx.stroke();
-      ctx.fillStyle = '#eceff1';
-      roundRect(-10, -9, 21, 24, 4); ctx.fill();
-      ctx.fillStyle = '#e53935';
-      ctx.fillRect(-10, 0, 21, 5);
-      ctx.fillStyle = '#6d4c41';
-      ctx.beginPath(); ctx.ellipse(0.5, -8, 9, 2.6, 0, 0, Math.PI * 2); ctx.fill();
-      // steam
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-      ctx.lineWidth = 1.6;
-      ctx.lineCap = 'round';
-      for (const sx of [-3, 4]) {
-        ctx.beginPath();
-        ctx.moveTo(sx, -13);
-        ctx.quadraticCurveTo(sx - 3, -16, sx, -19);
-        ctx.quadraticCurveTo(sx + 3, -22, sx, -25);
-        ctx.stroke();
-      }
-    },
-    function cabinet() {
-      ctx.fillStyle = '#90a4ae';
-      roundRect(-13, -19, 26, 38, 3); ctx.fill();
-      ctx.fillStyle = '#b0bec5';
-      for (let i = 0; i < 3; i++) {
-        roundRect(-10, -16 + i * 12, 20, 10, 2); ctx.fill();
-      }
-      ctx.fillStyle = '#546e7a';
-      for (let i = 0; i < 3; i++) ctx.fillRect(-4, -12 + i * 12, 8, 2);
-    },
-    function sticky() {
-      ctx.rotate(0.12);
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(-12, -10, 26, 26);
-      ctx.fillStyle = '#fff176';
-      ctx.fillRect(-13, -13, 26, 26);
-      ctx.fillStyle = '#fdd835';
-      ctx.fillRect(-13, -13, 26, 5);
-      ctx.strokeStyle = 'rgba(30,42,74,0.45)';
-      ctx.lineWidth = 1.6;
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath(); ctx.moveTo(-8, -2 + i * 5); ctx.lineTo(i === 2 ? 2 : 8, -2 + i * 5); ctx.stroke();
-      }
-    },
-  ];
+  // The city lives outside the game area, so it is only drawn when there is
+  // real room beside it (hidden on phones). Each building layer is rendered
+  // once into a seamless repeating strip; per frame we just blit it at a
+  // sideways offset and draw a few flickering windows on top.
+  const CITY_MIN_MARGIN = 48;   // px of space needed on each side
+  const CITY_TILE_W = 900;      // width of one repeating skyline strip (px)
+  const WINDOW_W = 4, WINDOW_H = 6;
+  let cityLayers = [];
+  let stars = [];
+  let skyCanvas = null;         // pre-rendered sky gradient + moon (static)
+  let glowCanvas = null;        // pre-rendered glow around the game area (static)
+  const GLOW_PAD = 60;
+  let bgTime = 0;               // background clock (keeps running in menus)
 
-  // Draw scenery down one side. cx: item center x; size: item size in px.
-  function drawSceneryColumn(cx, size, spacing, side, alpha, jitterX) {
-    const off = scroll % spacing;
-    const base = Math.floor(scroll / spacing);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    for (let i = -1; i * spacing < H + spacing; i++) {
-      const idx = base - i;                       // stable id for this slot
-      const hA = hash01(idx * 3.1 + side * 17.3);
-      const hB = hash01(idx * 7.7 + side * 5.9);
-      if (hB < 0.18) continue;                     // leave some gaps
-      const y = i * spacing + off + (hB - 0.5) * spacing * 0.3;
-      ctx.save();
-      ctx.translate(cx + (hA - 0.5) * jitterX, y);
-      ctx.scale(size / 40, size / 40);
-      SCENERY[Math.floor(hA * SCENERY.length) % SCENERY.length]();
-      ctx.restore();
+  function cityVisible() {
+    return offsetX >= CITY_MIN_MARGIN;
+  }
+
+  // Render into a fresh offscreen canvas of the given CSS size.
+  function makeLayer(w, h, draw) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * dpr));
+    c.height = Math.max(1, Math.round(h * dpr));
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    draw(g);
+    return c;
+  }
+
+  function buildCity() {
+    cityLayers = [];
+    stars = [];
+    skyCanvas = glowCanvas = null;
+    if (!cityVisible()) return;
+
+    // Static sky: deep navy at the top fading to a soft purple near the
+    // horizon, plus the moon with a soft halo and faint craters (left side).
+    skyCanvas = makeLayer(viewW, viewH, (g) => {
+      const sky = g.createLinearGradient(0, 0, 0, viewH);
+      sky.addColorStop(0, '#121a35');
+      sky.addColorStop(0.45, '#1c2747');
+      sky.addColorStop(0.8, '#302f59');
+      sky.addColorStop(1, '#403565');
+      g.fillStyle = sky;
+      g.fillRect(0, 0, viewW, viewH);
+      const mr = Math.max(12, Math.min(30, offsetX * 0.12));
+      const mx = Math.max(mr + 10, offsetX * 0.45);
+      const my = viewH * 0.13;
+      const halo = g.createRadialGradient(mx, my, mr * 0.8, mx, my, mr * 3.2);
+      halo.addColorStop(0, 'rgba(255,244,214,0.2)');
+      halo.addColorStop(1, 'rgba(255,244,214,0)');
+      g.fillStyle = halo;
+      g.beginPath(); g.arc(mx, my, mr * 3.2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#e6ddc0';
+      g.beginPath(); g.arc(mx, my, mr, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(170,160,130,0.35)';
+      g.beginPath(); g.arc(mx - mr * 0.3, my - mr * 0.2, mr * 0.22, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(mx + mr * 0.25, my + mr * 0.3, mr * 0.15, 0, Math.PI * 2); g.fill();
+    });
+
+    // Static warm glow hugging the game area's edges.
+    glowCanvas = makeLayer(W + GLOW_PAD * 2, H, (g) => {
+      g.shadowColor = 'rgba(255,224,130,0.35)';
+      g.shadowBlur = 30;
+      g.fillStyle = '#000';
+      g.fillRect(GLOW_PAD, -40, W, H + 80);
+      g.shadowColor = 'transparent';
+      g.clearRect(GLOW_PAD, 0, W, H);   // only the halo outside remains
+    });
+
+    const specs = [
+      // back layer: taller, darker, dimmer windows, slower
+      { minH: 0.16, maxH: 0.40, colors: ['#19213f', '#1b2345', '#1d264a'], winA: 0.4, litP: 0.2, speed: 5, seed: 11 },
+      // front layer: shorter, a touch lighter, brighter windows, faster
+      { minH: 0.08, maxH: 0.25, colors: ['#222b53', '#252e59', '#28325e'], winA: 0.65, litP: 0.28, speed: 13, seed: 29 },
+    ];
+    for (const sp of specs) {
+      const h = Math.round(viewH * sp.maxH) + 18;
+      const c = document.createElement('canvas');
+      c.width = Math.round(CITY_TILE_W * dpr);
+      c.height = Math.round(h * dpr);
+      const g = c.getContext('2d');
+      g.scale(dpr, dpr);
+      const lit = [], unlit = [];
+      let x = 0;
+      for (let i = 0; x < CITY_TILE_W; i++) {
+        let bw = 34 + Math.floor(hash01(sp.seed * 100 + i * 1.7) * 46);
+        if (CITY_TILE_W - (x + bw) < 34) bw = CITY_TILE_W - x;   // close the strip seamlessly
+        const bh = Math.round(viewH * (sp.minH + hash01(sp.seed * 50 + i * 2.3) * (sp.maxH - sp.minH)));
+        const color = sp.colors[i % sp.colors.length];
+        const top = h - bh;
+        g.fillStyle = color;
+        g.fillRect(x, top, bw, bh);
+        // Simple roof details
+        const r = hash01(sp.seed * 70 + i * 3.9);
+        if (r < 0.22) g.fillRect(Math.round(x + bw * 0.45), top - 14, 2, 14);          // antenna
+        else if (r < 0.45) g.fillRect(Math.round(x + bw * 0.2), top - 6, Math.round(bw * 0.6), 6); // step
+        // Window grid
+        const cols = Math.max(1, Math.floor((bw - 8) / (WINDOW_W + 5)));
+        const x0 = Math.round(x + (bw - (cols * (WINDOW_W + 5) - 5)) / 2);
+        let row = 0;
+        for (let wy = top + 8; wy + WINDOW_H < h - 4; wy += WINDOW_H + 7, row++) {
+          for (let col = 0; col < cols; col++) {
+            const wx = x0 + col * (WINDOW_W + 5);
+            const win = { x: wx, y: wy, color };
+            if (hash01(sp.seed * 13 + i * 31.7 + col * 7.3 + row * 3.1) < sp.litP) {
+              g.fillStyle = `rgba(255,213,79,${sp.winA})`;
+              g.fillRect(wx, wy, WINDOW_W, WINDOW_H);
+              lit.push(win);
+            } else {
+              unlit.push(win);
+            }
+          }
+        }
+        x += bw;
+      }
+      cityLayers.push({ canvas: c, h, speed: sp.speed, winA: sp.winA, lit, unlit });
     }
+
+    for (let k = 0; k < 70; k++) {
+      stars.push({
+        fx: hash01(k * 3.3 + 0.1),
+        fy: hash01(k * 7.9 + 0.2) * 0.5,
+        r: 0.6 + hash01(k * 1.3) * 1.1,
+        phase: hash01(k * 9.1) * Math.PI * 2,
+        rate: 0.8 + hash01(k * 4.4) * 1.6,
+      });
+    }
+  }
+
+  function drawCityBackground() {
+    if (!cityVisible() || cityLayers.length === 0) return;
+
+    // Only the side margins are visible; skip the part under the game area.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, offsetX, viewH);
+    ctx.rect(offsetX + W, 0, viewW - offsetX - W, viewH);
+    ctx.clip();
+    const sw = skyCanvas.width / viewW;   // device px per CSS px
+    ctx.drawImage(skyCanvas, 0, 0, offsetX * sw, skyCanvas.height, 0, 0, offsetX, viewH);
+    ctx.drawImage(skyCanvas, (offsetX + W) * sw, 0, (viewW - offsetX - W) * sw, skyCanvas.height,
+      offsetX + W, 0, viewW - offsetX - W, viewH);
+
+    // Twinkling stars
+    for (const st of stars) {
+      const a = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(bgTime * st.rate + st.phase));
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.beginPath();
+      ctx.arc(st.fx * viewW, st.fy * viewH, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Skyline layers, back to front, drifting slowly sideways (parallax)
+    cityLayers.forEach((layer, li) => {
+      const off = (bgTime * layer.speed) % CITY_TILE_W;
+      const y = viewH - layer.h;
+      for (let x = -off; x < viewW; x += CITY_TILE_W) {
+        ctx.drawImage(layer.canvas, x, y, CITY_TILE_W, layer.h);
+      }
+      // A few windows flicker: lit ones switch off, dark ones switch on.
+      for (let k = 0; k < 10; k++) {
+        const period = 1.6 + k * 0.37;
+        const slot = Math.floor(bgTime / period + k * 0.5);
+        const turnOff = hash01(slot * 12.9 + k * 3.1 + li * 7) < 0.5;
+        const pool = turnOff ? layer.lit : layer.unlit;
+        if (pool.length === 0) continue;
+        const win = pool[Math.floor(hash01(slot * 4.1 + k * 1.9 + li) * pool.length)];
+        ctx.fillStyle = turnOff ? win.color : `rgba(255,213,79,${layer.winA})`;
+        for (let x = -off; x < viewW; x += CITY_TILE_W) {
+          ctx.fillRect(x + win.x, y + win.y, WINDOW_W, WINDOW_H);
+        }
+      }
+    });
     ctx.restore();
   }
 
-  // Wide screens: scenery in the navy margins beside the game area.
-  function drawMarginScenery() {
-    if (offsetX < 48) return;
-    const size = Math.min(58, offsetX * 0.55);
-    const cxL = offsetX - Math.min(offsetX / 2, 80);
-    const cxR = offsetX + W + Math.min(offsetX / 2, 80);
-    // Soft shade along the paper edges so the ledger sits "on" the desk
-    const g1 = ctx.createLinearGradient(offsetX - 14, 0, offsetX, 0);
-    g1.addColorStop(0, 'rgba(0,0,0,0)'); g1.addColorStop(1, 'rgba(0,0,0,0.25)');
-    ctx.fillStyle = g1; ctx.fillRect(offsetX - 14, 0, 14, viewH);
-    const g2 = ctx.createLinearGradient(offsetX + W, 0, offsetX + W + 14, 0);
-    g2.addColorStop(0, 'rgba(0,0,0,0.25)'); g2.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g2; ctx.fillRect(offsetX + W, 0, 14, viewH);
-    drawSceneryColumn(cxL, size, size * 2.6, 0, 0.6, Math.min(30, offsetX * 0.2));
-    drawSceneryColumn(cxR, size, size * 2.6, 1, 0.6, Math.min(30, offsetX * 0.2));
-  }
-
-  // Narrow screens: small items peek in at the very edges of the paper, inside
-  // the padding outside the outer lanes' tiles, so they never cover gameplay.
-  function drawEdgeScenery() {
-    if (offsetX >= 48) return;
-    const size = laneW * 0.22;     // half of it (<= 0.11 laneW) shows on screen
-    drawSceneryColumn(0, size, size * 4.2, 0, 0.4, 0);
-    drawSceneryColumn(W, size, size * 4.2, 1, 0.4, 0);
+  // Subtle warm glow around the game area to separate it from the city.
+  function drawGameAreaGlow() {
+    if (!cityVisible() || !glowCanvas) return;
+    ctx.drawImage(glowCanvas, offsetX - GLOW_PAD, 0, W + GLOW_PAD * 2, H);
   }
 
   // Faint speed streaks along the edges; fade in as speed rises.
@@ -2049,7 +2117,7 @@
         const seed = hash01(i * 9.3 + side * 7.1 + 1);
         const len = 50 + seed * 80;
         const y = ((scroll * 2 + seed * viewH * 3) % (viewH + len)) - len;
-        const d = 18 + hash01(i * 2.7 + side * 4.4) * Math.min(offsetX - 24, 120);
+        const d = 8 + hash01(i * 2.7 + side * 4.4) * Math.min(offsetX - 24, 36);   // hug the paper
         const x = side === 0 ? offsetX - d : offsetX + W + d;
         ctx.strokeStyle = `rgba(255,255,255,${0.12 * k})`;
         ctx.lineWidth = 1.5 + seed;
@@ -2172,11 +2240,12 @@
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Navy surround outside the game area, with office scenery on wide screens.
+    // Navy surround outside the game area; a city-at-night scene on wide screens.
     ctx.fillStyle = COLORS.navy;
     ctx.fillRect(0, 0, viewW, viewH);
-    drawMarginScenery();
+    drawCityBackground();
     drawMarginSpeedLines();
+    drawGameAreaGlow();
 
     // Everything else draws inside the clipped, centered game area.
     ctx.save();
@@ -2195,7 +2264,6 @@
     }
 
     drawBackground();
-    drawEdgeScenery();
     drawSpeedLines();
     drawObjects();
     drawDust();
@@ -2226,6 +2294,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - lastTime) / 1000); // clamp big gaps (tab switch)
     lastTime = now;
+    bgTime += dt;
     update(dt);
     render();
     requestAnimationFrame(frame);
