@@ -39,8 +39,102 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #1e2a4a;
     z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
+  .overlay.shown { opacity: 1; }
+  .overlay:not(.shown) { pointer-events: none; }   /* no clicks while fading out */
   .overlay[hidden] { display: none; }
+  .overlay.clear { background: transparent; }
+
+  /* ---- Start screen ---- */
+  .start-card {
+    border: 3px solid #2e7d32;
+    text-align: center;
+    cursor: pointer;
+    padding: 16px 18px;
+    background: rgba(255, 255, 255, 0.94);
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .start-title {
+    margin: 0;
+    font-size: clamp(38px, 12vw, 56px);
+    font-weight: 900;
+    line-height: 1.05;
+    color: #1e2a4a;
+    text-shadow: 3px 3px 0 #f9a825;
+  }
+  #start-hero { display: block; margin: 6px auto 2px; }
+  .rule { height: 2px; width: 60%; margin: 4px auto 10px; background: #2e7d32; flex: 0 0 auto; }
+  .howto-title { font-size: 16px; font-weight: 800; color: #2e7d32; margin-bottom: 4px; }
+  .howto { margin: 0 0 6px; font-size: clamp(14px, 4vw, 16px); line-height: 1.4; }
+  .press {
+    margin: 8px 0 10px;
+    font-size: clamp(16px, 4.6vw, 19px);
+    font-weight: 800;
+    color: #e53935;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  .stats {
+    background: #e8f5e9;
+    border-radius: 12px;
+    padding: 10px 12px;
+    text-align: left;
+    cursor: default;
+  }
+  .stats-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .stats-high { font-size: 16px; font-weight: 800; }
+  .stats-high b { color: #c17900; }
+  .mm-title { margin-top: 6px; font-size: 13px; font-weight: 800; color: #2e7d32; text-transform: uppercase; letter-spacing: 0.06em; }
+  .mm-list { margin: 4px 0 0; padding: 0; list-style: none; font-size: 14px; }
+  .mm-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; overflow-wrap: anywhere; }
+  .mm-list li span:last-child { flex: 0 0 auto; font-weight: 700; color: #e53935; }
+  .mm-empty { margin: 4px 0 0; font-size: 14px; color: #37474f; }
+  .link-btn {
+    border: none;
+    background: none;
+    padding: 4px 2px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: #546e7a;
+    text-decoration: underline;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .reset-confirm { margin-top: 6px; font-size: 14px; font-weight: 700; }
+  /* Short screens: tighten the start card so it fits without scrolling. */
+  @media (max-height: 560px) {
+    .start-card { padding: 10px 12px; }
+    .start-title { font-size: 34px; }
+    #start-hero { margin: 2px auto 0; }
+    .rule { margin: 2px auto 6px; }
+    .howto-title { font-size: 14px; margin-bottom: 2px; }
+    .howto { font-size: 13px; margin-bottom: 3px; line-height: 1.3; }
+    .press { font-size: 15px; margin: 4px 0 6px; }
+    .stats { padding: 7px 10px; }
+    .stats-high { font-size: 14px; }
+    .mm-title { margin-top: 3px; font-size: 12px; }
+    .mm-list, .mm-empty { font-size: 13px; }
+  }
+  .reset-confirm[hidden] { display: none; }
+  .reset-confirm .small-btn {
+    margin: 6px 6px 0 0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 2px solid #1e2a4a;
+    background: #ffffff;
+    color: #1e2a4a;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .reset-confirm .small-btn.danger { background: #e53935; border-color: #e53935; color: #ffffff; }
   .card {
     background: #ffffff;
     border-radius: 18px;
@@ -157,7 +251,22 @@
   /* Game over card: header and button stay put, the review list scrolls. */
   .go-card { overflow: hidden; border: 3px solid #e53935; }
   .go-title { text-align: center; font-size: clamp(32px, 9vw, 44px); font-weight: 900; color: #e53935; margin: 0; }
-  .go-score { text-align: center; font-size: 22px; font-weight: 800; margin: 6px 0 12px; }
+  .go-score { text-align: center; font-size: 22px; font-weight: 800; margin: 6px 0 2px; }
+  .go-best { text-align: center; font-size: 15px; color: #546e7a; margin: 0 0 10px; }
+  .go-new {
+    align-self: center;
+    margin: 2px 0 8px;
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: #f9a825;
+    color: #1e2a4a;
+    font-weight: 900;
+    font-size: 16px;
+    animation: pop 0.5s ease-out;
+  }
+  .go-new[hidden] { display: none; }
+  @keyframes pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+  .go-menu { align-self: center; margin-top: 6px; }
   .go-review-title { font-size: 16px; font-weight: 800; margin: 0 0 8px; color: #2e7d32; }
   .go-list {
     flex: 1 1 auto;
@@ -182,6 +291,33 @@
 <body>
 <canvas id="game"></canvas>
 
+<!-- Start screen -->
+<div id="start" class="overlay clear" hidden>
+  <div class="card start-card" id="start-card">
+    <h1 class="start-title">Debit Dash</h1>
+    <canvas id="start-hero" aria-hidden="true"></canvas>
+    <div class="rule"></div>
+    <div class="howto-title">How to play</div>
+    <p class="howto">Use &larr; &rarr; or A / D (swipe on mobile) to switch lanes.</p>
+    <p class="howto">Dodge the accounting obstacles. Distance scores points, and $ coins are +10!</p>
+    <div class="press">Press Space or Tap to Start</div>
+    <div class="stats" id="stats">
+      <div class="stats-row">
+        <div class="stats-high">High Score: <b id="st-high">0</b></div>
+        <button class="link-btn" id="reset-btn" type="button">Reset Stats</button>
+      </div>
+      <div class="reset-confirm" id="reset-confirm" hidden>
+        Clear the high score and topic stats?<br>
+        <button class="small-btn danger" id="reset-yes" type="button">Yes, reset</button>
+        <button class="small-btn" id="reset-no" type="button">Cancel</button>
+      </div>
+      <div class="mm-title">Most Missed Topics</div>
+      <ol class="mm-list" id="st-missed"></ol>
+      <p class="mm-empty" id="st-missed-empty">No missed topics yet. Keep it up!</p>
+    </div>
+  </div>
+</div>
+
 <!-- Checkpoint question card -->
 <div id="checkpoint" class="overlay" hidden>
   <div class="card" role="dialog" aria-labelledby="cp-question">
@@ -202,10 +338,13 @@
   <div class="card go-card" role="dialog" aria-labelledby="go-title">
     <h1 class="go-title" id="go-title">Game Over</h1>
     <div class="go-score" id="go-score"></div>
+    <div class="go-new" id="go-new" hidden>New High Score!</div>
+    <div class="go-best" id="go-best"></div>
     <h2 class="go-review-title">Questions to Review</h2>
     <div class="go-list" id="go-list"></div>
     <button class="btn" id="go-again" type="button">Play Again</button>
     <div class="hint">or press Space</div>
+    <button class="link-btn go-menu" id="go-menu" type="button">Main Menu</button>
   </div>
 </div>
 <script>
@@ -294,7 +433,19 @@
   // CANVAS SETUP & RESIZING
   // ===========================================================================
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  const mainCtx = canvas.getContext('2d');
+  let ctx = mainCtx;   // drawing functions use ctx; withCtx() points it elsewhere
+
+  // Run a drawing function against another canvas (e.g. the start screen hero).
+  function withCtx(c, fn) {
+    const prev = ctx;
+    ctx = c;
+    try { fn(); } finally { ctx = prev; }
+  }
+
+  const heroCanvas = document.getElementById('start-hero');
+  const heroCtx = heroCanvas.getContext('2d');
+  let heroW = 0, heroH = 0;
 
   let dpr = 1;
   let viewW = 0, viewH = 0;     // full window size
@@ -320,6 +471,14 @@
     viewH = window.innerHeight;
     canvas.width = Math.round(viewW * dpr);
     canvas.height = Math.round(viewH * dpr);
+
+    // Start screen hero canvas: shorter on short screens so the card fits.
+    heroH = Math.round(Math.max(60, Math.min(140, viewH < 560 ? viewH * 0.13 : viewH * 0.17)));
+    heroW = Math.round(heroH * 0.8);
+    heroCanvas.width = heroW * dpr;
+    heroCanvas.height = heroH * dpr;
+    heroCanvas.style.width = heroW + 'px';
+    heroCanvas.style.height = heroH + 'px';
     canvas.style.width = viewW + 'px';
     canvas.style.height = viewH + 'px';
 
@@ -357,6 +516,7 @@
   let lastOpenLanes = null;     // open lanes of the previous obstacle row
   let objects = [];             // obstacles and coins
   let floaters = [];            // "+10" popups
+  let sparkles = [];            // coin-collect sparkle particles
   let hitFlash = 0;             // red screen flash timer
   let stateTimer = 0;           // time spent in the current state
   let globalTime = 0;
@@ -384,6 +544,7 @@
     lastOpenLanes = null;
     objects = [];
     floaters = [];
+    sparkles = [];
     hitFlash = 0;
     sinceCheckpoint = CHECKPOINT_INTERVAL - FIRST_CHECKPOINT;
     missed = [];
@@ -413,6 +574,7 @@
   }
 
   function startGame() {
+    hideOverlay(startEl);
     hideGameOver();
     resetGame();
     setState('intro');   // quick turn-around, then 'playing'
@@ -437,6 +599,9 @@
   }
 
   window.addEventListener('keydown', (e) => {
+    // A focused HTML button (Play Again, Continue, Reset Stats...) handles its
+    // own Space/Enter; don't also trigger the game's shortcut.
+    if ((e.code === 'Space' || e.code === 'Enter') && e.target instanceof HTMLButtonElement) return;
     switch (e.code) {
       case 'ArrowLeft':
       case 'KeyA':
@@ -498,6 +663,138 @@
   });
 
   window.addEventListener('resize', resize);
+
+  // ===========================================================================
+  // OVERLAY FADES (start, checkpoint, game over)
+  // ===========================================================================
+  const FADE_MS = 300;
+
+  function showOverlay(el) {
+    clearTimeout(el._fadeTimer);
+    el.hidden = false;
+    void el.offsetWidth;          // restart the CSS transition from opacity 0
+    el.classList.add('shown');
+  }
+
+  function hideOverlay(el) {
+    clearTimeout(el._fadeTimer);
+    el.classList.remove('shown');
+    if (el.contains(document.activeElement)) document.activeElement.blur();
+    el._fadeTimer = setTimeout(() => { el.hidden = true; }, FADE_MS);
+  }
+
+  // ===========================================================================
+  // STATS: HIGH SCORE & MOST-MISSED TOPICS (localStorage, failure-safe)
+  // ===========================================================================
+  const STORAGE_KEY = 'debitDash.stats.v1';
+
+  function freshStats() {
+    return { highScore: 0, topicMisses: {} };
+  }
+
+  function loadStats() {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return freshStats();
+      const data = JSON.parse(raw);
+      const out = freshStats();
+      if (Number.isFinite(data.highScore) && data.highScore > 0) out.highScore = Math.floor(data.highScore);
+      if (data.topicMisses && typeof data.topicMisses === 'object') {
+        for (const [topic, n] of Object.entries(data.topicMisses)) {
+          if (Number.isFinite(n) && n > 0) out.topicMisses[topic] = Math.floor(n);
+        }
+      }
+      return out;
+    } catch (e) {
+      return freshStats();    // storage blocked or corrupt: play without saving
+    }
+  }
+
+  function saveStats() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+    } catch (e) {
+      // Storage unavailable (private mode, blocked, full): keep going in memory.
+    }
+  }
+
+  let stats = loadStats();
+
+  function recordTopicMiss(topic) {
+    stats.topicMisses[topic] = (stats.topicMisses[topic] || 0) + 1;
+    saveStats();
+  }
+
+  // Returns true if this score set a new high score.
+  function recordScore(finalScore) {
+    if (finalScore > stats.highScore) {
+      stats.highScore = finalScore;
+      saveStats();
+      return true;
+    }
+    return false;
+  }
+
+  function topMissedTopics(n) {
+    return Object.entries(stats.topicMisses)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, n);
+  }
+
+  // ---- Start screen (HTML) ----
+  const startEl = document.getElementById('start');
+  const stHigh = document.getElementById('st-high');
+  const stMissed = document.getElementById('st-missed');
+  const stMissedEmpty = document.getElementById('st-missed-empty');
+  const resetBtn = document.getElementById('reset-btn');
+  const resetConfirm = document.getElementById('reset-confirm');
+
+  function refreshStartStats() {
+    stHigh.textContent = String(stats.highScore);
+    const top = topMissedTopics(3);
+    stMissed.innerHTML = '';
+    for (const [topic, count] of top) {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = topic;
+      const c = document.createElement('span');
+      c.textContent = count + (count === 1 ? ' miss' : ' misses');
+      li.append(name, c);
+      stMissed.appendChild(li);
+    }
+    stMissed.hidden = top.length === 0;
+    stMissedEmpty.hidden = top.length !== 0;
+    resetConfirm.hidden = true;
+    resetBtn.hidden = false;
+  }
+
+  function showStartScreen() {
+    resetGame();
+    setState('start');
+    refreshStartStats();
+    document.getElementById('start-card').scrollTop = 0;
+    showOverlay(startEl);
+  }
+
+  // Tapping anywhere on the start card starts the game, except the stats box
+  // (so Reset Stats and its confirmation can be used safely).
+  startEl.addEventListener('click', (e) => {
+    if (e.target.closest('#stats')) return;
+    if (state === 'start') startGame();
+  });
+  resetBtn.addEventListener('click', () => {
+    resetConfirm.hidden = false;
+    resetBtn.hidden = true;
+  });
+  document.getElementById('reset-no').addEventListener('click', () => {
+    resetConfirm.hidden = true;
+    resetBtn.hidden = false;
+  });
+  document.getElementById('reset-yes').addEventListener('click', () => {
+    stats = freshStats();
+    saveStats();
+    refreshStartStats();
+  });
 
   // ===========================================================================
   // CHECKPOINTS: STUDY QUESTIONS
@@ -563,7 +860,7 @@
     });
     cpFeedback.hidden = true;
     cpContinue.hidden = true;
-    cpEl.hidden = false;
+    showOverlay(cpEl);
     cpEl.querySelector('.card').scrollTop = 0;
     setState('checkpoint');
   }
@@ -592,6 +889,7 @@
     } else {
       checkpoint.phase = 'wrong';
       if (!missed.includes(checkpoint.q)) missed.push(checkpoint.q);
+      recordTopicMiss(checkpoint.q.topic);
       lives = Math.max(0, lives - 1);
       if (lives === 0) {
         // Last heart lost on a question: straight to Game Over.
@@ -616,7 +914,7 @@
   }
 
   function closeCheckpoint() {
-    cpEl.hidden = true;
+    hideOverlay(cpEl);
     checkpoint = null;
   }
 
@@ -631,13 +929,23 @@
   const goEl = document.getElementById('gameover');
   const goScore = document.getElementById('go-score');
   const goList = document.getElementById('go-list');
+  const goBest = document.getElementById('go-best');
+  const goNew = document.getElementById('go-new');
+  document.getElementById('go-menu').addEventListener('click', () => {
+    if (state !== 'gameover') return;
+    hideGameOver();
+    showStartScreen();
+  });
   document.getElementById('go-again').addEventListener('click', () => {
     if (state === 'gameover') startGame();
   });
 
   function showGameOver() {
     setState('gameover');
+    const isNewHigh = recordScore(score);
     goScore.textContent = 'Score: ' + score;
+    goNew.hidden = !isNewHigh;
+    goBest.textContent = 'High Score: ' + stats.highScore;
     goList.innerHTML = '';
     if (missed.length === 0) {
       const p = document.createElement('div');
@@ -658,11 +966,11 @@
       goList.appendChild(item);
     }
     goList.scrollTop = 0;
-    goEl.hidden = false;
+    showOverlay(goEl);
   }
 
   function hideGameOver() {
-    goEl.hidden = true;
+    hideOverlay(goEl);
   }
 
   // ===========================================================================
@@ -823,9 +1131,18 @@
     stateTimer += dt;
     hitFlash = Math.max(0, hitFlash - dt);
 
-    // Floating score popups always animate.
+    // Floating score popups and coin sparkles always animate.
     for (const f of floaters) { f.y -= 40 * u * dt; f.life -= dt; }
     floaters = floaters.filter((f) => f.life > 0);
+    for (const p of sparkles) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.9;
+      p.vy *= 0.9;
+      p.rot += p.spin * dt;
+      p.life -= dt;
+    }
+    sparkles = sparkles.filter((p) => p.life > 0);
 
     if (state === 'start') {
       // Gentle idle scroll on the title screen.
@@ -893,6 +1210,7 @@
           o.dead = true;
           score += COIN_POINTS;
           floaters.push({ x: cb.x, y: cb.y, text: '+' + COIN_POINTS, life: 0.8 });
+          spawnSparkles(cb.x, cb.y);
         }
       } else if (player.invT <= 0 && state === 'playing') {
         if (overlaps(pb, obstacleBox(o))) {
@@ -1376,7 +1694,7 @@
   function drawCoin(x, y, phase) {
     const s = u;
     const r = COIN_RADIUS * s;
-    const squash = 0.55 + 0.45 * Math.abs(Math.cos(globalTime * 3 + phase));
+    const squash = 0.78 + 0.22 * Math.abs(Math.cos(globalTime * 2.5 + phase));   // a slight spin
     ctx.save();
     ctx.translate(x, y);
 
@@ -1411,6 +1729,47 @@
         drawObstacleTile(o);
         ctx.restore();
       }
+    }
+  }
+
+  // Coin collect sparkle: a burst of little four-point stars.
+  function spawnSparkles(x, y) {
+    const n = 12;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+      const v = (110 + Math.random() * 100) * u;
+      sparkles.push({
+        x, y,
+        vx: Math.cos(a) * v,
+        vy: Math.sin(a) * v - 30 * u,
+        size: (5 + Math.random() * 4) * u,
+        rot: Math.random() * Math.PI,
+        spin: (Math.random() - 0.5) * 10,
+        life: 0.5 + Math.random() * 0.2,
+        max: 0.7,
+        color: i % 3 === 0 ? COLORS.white : (i % 3 === 1 ? COLORS.gold : '#fff59d'),
+      });
+    }
+  }
+
+  function drawSparkles() {
+    for (const p of sparkles) {
+      const k = Math.max(0, p.life / p.max);
+      const r = p.size * (0.5 + k * 0.7);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, k * 1.5);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const rr = i % 2 === 0 ? r : r * 0.35;
+        const a = (i / 8) * Math.PI * 2;
+        ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -1480,111 +1839,23 @@
   }
 
   // ===========================================================================
-  // DRAWING: SCREENS (START & GAME OVER)
+  // DRAWING: SCREENS (START HERO & COUNTDOWN)
   // ===========================================================================
-  // Wraps text to fit maxWidth; returns the y after the last line.
-  // Pass draw = false to only measure.
-  function wrapText(text, x, y, maxWidth, lineHeight, draw = true) {
-    const words = text.split(' ');
-    let line = '';
-    for (const word of words) {
-      const test = line ? line + ' ' + word : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        if (draw) ctx.fillText(line, x, y);
-        line = word;
-        y += lineHeight;
-      } else {
-        line = test;
-      }
-    }
-    if (line) { if (draw) ctx.fillText(line, x, y); y += lineHeight; }
-    return y;
-  }
-
-  const HOW_TO_LINES = [
-    'Use ← → or A / D (swipe on mobile) to switch lanes.',
-    'Dodge the accounting obstacles. Distance scores points, and $ coins are +10!',
-  ];
-
-  // Lays out the start screen text; with draw = false it only returns the bottom y.
-  function layoutStartText(cx, py, panelW, draw) {
-    // Shrink the title until it fits inside the panel.
-    let titleSize = 64;
-    ctx.font = `900 ${titleSize}px ${FONT}`;
-    const fit = (panelW - 36) / ctx.measureText('Debit Dash').width;
-    if (fit < 1) titleSize = Math.floor(titleSize * fit);
-    if (draw) {
-      ctx.font = `900 ${titleSize}px ${FONT}`;
-      ctx.fillStyle = COLORS.gold;
-      ctx.fillText('Debit Dash', cx + 3, py + titleSize * 0.95 + 3);
-      ctx.fillStyle = COLORS.navy;
-      ctx.fillText('Debit Dash', cx, py + titleSize * 0.95);
-    }
-
-    // The accountant, facing forward, large and centered under the title
-    let y = py + titleSize * 1.55;
-    const charH = Math.max(80, Math.min(170, H * 0.21));   // px, head to feet
-    const k = charH / (88 * u);                           // figure is ~88u tall
-    if (draw) {
-      const bob = Math.sin(globalTime * 3) * 2;
-      ctx.save();
-      ctx.translate(cx, y + charH + bob);
-      ctx.scale(k, k);
+  // The start screen itself is HTML; the accountant on it is drawn into its
+  // own small canvas with the same drawing code used in the game.
+  function drawStartHero() {
+    heroCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    heroCtx.clearRect(0, 0, heroW, heroH);
+    const k = (heroH - 10) / (86 * u);               // figure is ~86u tall
+    const bob = Math.sin(globalTime * 3) * 1.5;
+    heroCtx.save();
+    heroCtx.translate(heroW / 2, heroH - 6 + bob);
+    heroCtx.scale(k, k);
+    withCtx(heroCtx, () => {
       drawPlayerShadow();
       drawAccountantFront();
-      ctx.restore();
-    }
-    y += charH + 18;
-
-    // Divider rule
-    if (draw) {
-      ctx.fillStyle = COLORS.green;
-      ctx.fillRect(cx - panelW * 0.3, y - 1, panelW * 0.6, 2);
-    }
-
-    // How to play
-    y += 26;
-    const bodySize = Math.max(14, Math.min(18, panelW / 22));
-    if (draw) {
-      ctx.font = `bold ${Math.round(bodySize)}px ${FONT}`;
-      ctx.fillStyle = COLORS.green;
-      ctx.fillText('How to play', cx, y);
-    }
-    y += bodySize * 1.6;
-    ctx.font = `${Math.round(bodySize)}px ${FONT}`;
-    ctx.fillStyle = COLORS.navy;
-    for (const line of HOW_TO_LINES) {
-      y = wrapText(line, cx, y, panelW - 40, bodySize * 1.4, draw) + 4;
-    }
-
-    // Blinking prompt
-    y += bodySize * 1.1;
-    if (draw && Math.floor(globalTime * 2) % 2 === 0) {
-      ctx.font = `bold ${Math.round(bodySize + 2)}px ${FONT}`;
-      ctx.fillStyle = COLORS.red;
-      ctx.fillText('Press Space or Tap to Start', cx, y);
-    }
-    return y + bodySize * 1.6;
-  }
-
-  function drawStartScreen() {
-    const cx = W / 2;
-    const panelW = Math.min(W - 32, 420);
-    const px = cx - panelW / 2;
-    const py = Math.max(20, H * 0.12);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const bottom = layoutStartText(cx, py, panelW, false);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    roundRect(px, py, panelW, bottom - py, 18);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.green;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    layoutStartText(cx, py, panelW, true);
+    });
+    heroCtx.restore();
   }
 
   // Big 3-2-1 over a lightly dimmed, frozen game.
@@ -1629,6 +1900,7 @@
     drawBackground();
     drawObjects();
     drawPlayer();
+    drawSparkles();
     drawFloaters();
 
     if (hitFlash > 0) {
@@ -1637,7 +1909,7 @@
     }
 
     if (state === 'start') {
-      drawStartScreen();
+      drawStartHero();
     } else {
       drawHUD();
       if (state === 'countdown') drawCountdown();
@@ -1660,7 +1932,7 @@
   }
 
   resize();
-  resetGame();
+  showStartScreen();
   requestAnimationFrame(frame);
 })();
 </script>
