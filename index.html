@@ -21,13 +21,213 @@
     display: block;
     touch-action: none;
   }
+
+  /* ---- HTML overlays (question card, game over) on top of the game area ---- */
+  .overlay {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100vw, 500px);
+    box-sizing: border-box;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(30, 42, 74, 0.72);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e2a4a;
+    z-index: 10;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    width: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .cp-label {
+    align-self: center;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    color: #ffffff;
+    background: #2e7d32;
+    border-radius: 999px;
+    padding: 4px 12px;
+  }
+  .cp-topic {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #2e7d32;
+    margin: 10px 0 6px;
+  }
+  .cp-question {
+    text-align: center;
+    font-size: clamp(18px, 5vw, 22px);
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0 0 16px;
+    overflow-wrap: anywhere;
+  }
+  .cp-answers { display: flex; flex-direction: column; gap: 10px; }
+  .answer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border: 2px solid #c5cae9;
+    border-radius: 12px;
+    background: #f5f7ff;
+    color: #1e2a4a;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    touch-action: manipulation;
+  }
+  .answer:hover:not(:disabled) { border-color: #1e2a4a; }
+  .answer:disabled { cursor: default; }
+  .answer .num {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #1e2a4a;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+  }
+  .answer.correct { background: #e8f5e9; border-color: #2e7d32; }
+  .answer.correct .num { background: #2e7d32; }
+  .answer.wrong { background: #ffebee; border-color: #e53935; }
+  .answer.wrong .num { background: #e53935; }
+  .answer.faded { opacity: 0.5; }
+  .cp-feedback { margin-top: 14px; text-align: center; }
+  .cp-feedback[hidden] { display: none; }
+  .cp-result { font-size: 20px; font-weight: 800; }
+  .cp-result.good { color: #2e7d32; }
+  .cp-result.bad { color: #e53935; }
+  .cp-expl {
+    margin: 8px 0 0;
+    font-size: 15px;
+    line-height: 1.45;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .btn {
+    display: block;
+    margin: 14px auto 0;
+    min-width: 180px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 14px;
+    background: #f9a825;
+    color: #1e2a4a;
+    font: inherit;
+    font-size: 19px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #c17900;
+    touch-action: manipulation;
+  }
+  .btn[hidden] { display: none; }
+  .hint { text-align: center; font-size: 13px; color: rgba(30, 42, 74, 0.65); margin-top: 8px; }
+
+  /* Game over card: header and button stay put, the review list scrolls. */
+  .go-card { overflow: hidden; border: 3px solid #e53935; }
+  .go-title { text-align: center; font-size: clamp(32px, 9vw, 44px); font-weight: 900; color: #e53935; margin: 0; }
+  .go-score { text-align: center; font-size: 22px; font-weight: 800; margin: 6px 0 12px; }
+  .go-review-title { font-size: 16px; font-weight: 800; margin: 0 0 8px; color: #2e7d32; }
+  .go-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 4px 2px;
+  }
+  .go-item { padding: 10px 0; border-bottom: 1px dashed #e0e0e0; overflow-wrap: anywhere; }
+  .go-item:last-child { border-bottom: none; }
+  .go-item .t { font-size: 12px; font-weight: 800; color: #2e7d32; text-transform: uppercase; letter-spacing: 0.06em; }
+  .go-item .q { font-size: 15px; font-weight: 700; margin: 3px 0; line-height: 1.35; }
+  .go-item .a { font-size: 14px; margin: 3px 0; }
+  .go-item .a b { color: #2e7d32; }
+  .go-item .e { font-size: 14px; line-height: 1.4; color: #37474f; margin: 3px 0 0; }
+  .go-empty { font-size: 15px; text-align: center; padding: 10px 0; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+
+<!-- Checkpoint question card -->
+<div id="checkpoint" class="overlay" hidden>
+  <div class="card" role="dialog" aria-labelledby="cp-question">
+    <div class="cp-label">CHECKPOINT</div>
+    <div class="cp-topic" id="cp-topic"></div>
+    <p class="cp-question" id="cp-question"></p>
+    <div class="cp-answers" id="cp-answers"></div>
+    <div class="cp-feedback" id="cp-feedback" hidden>
+      <div class="cp-result" id="cp-result"></div>
+      <p class="cp-expl" id="cp-expl"></p>
+      <button class="btn" id="cp-continue" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game over screen with missed-question review -->
+<div id="gameover" class="overlay" hidden>
+  <div class="card go-card" role="dialog" aria-labelledby="go-title">
+    <h1 class="go-title" id="go-title">Game Over</h1>
+    <div class="go-score" id="go-score"></div>
+    <h2 class="go-review-title">Questions to Review</h2>
+    <div class="go-list" id="go-list"></div>
+    <button class="btn" id="go-again" type="button">Play Again</button>
+    <div class="hint">or press Space</div>
+  </div>
+</div>
 <script>
 (() => {
   'use strict';
+
+  // ===========================================================================
+  // QUESTIONS (study checkpoint questions - replace with your own set)
+  // Each entry: topic, question, correct answer, two wrong answers, explanation.
+  // ===========================================================================
+  const QUESTIONS = [
+    { topic: "Accounting Equation", question: "Which equation is correct?", correct: "Assets = Liabilities + Equity", wrong1: "Assets = Liabilities - Equity", wrong2: "Equity = Assets + Liabilities", explanation: "The accounting equation is Assets = Liabilities + Equity. Everything a company owns is financed by creditors or owners." },
+    { topic: "Normal Balances", question: "Which account normally has a debit balance?", correct: "Accounts Receivable", wrong1: "Accounts Payable", wrong2: "Service Revenue", explanation: "Assets like Accounts Receivable normally carry debit balances. Liabilities and revenues normally carry credit balances." },
+    { topic: "Debits and Credits", question: "Which account is increased by a credit?", correct: "Unearned Revenue", wrong1: "Prepaid Insurance", wrong2: "Equipment", explanation: "Unearned Revenue is a liability, and liabilities increase with credits. Prepaid Insurance and Equipment are assets, which increase with debits." },
+    { topic: "Journal Entries", question: "A company performs services and receives $500 cash immediately. What is the entry?", correct: "Debit Cash, Credit Service Revenue", wrong1: "Debit Service Revenue, Credit Cash", wrong2: "Debit Cash, Credit Accounts Receivable", explanation: "Cash (an asset) increases with a debit, and revenue is earned when the service is performed, so Service Revenue is credited." },
+    { topic: "Journal Entries", question: "A company buys supplies on account. What is the entry?", correct: "Debit Supplies, Credit Accounts Payable", wrong1: "Debit Accounts Payable, Credit Supplies", wrong2: "Debit Supplies, Credit Cash", explanation: "Supplies (an asset) increase with a debit. Buying on account means the company owes money, so Accounts Payable is credited." },
+    { topic: "Journal Entries", question: "A company pays 6 months of rent in advance. What is the initial entry?", correct: "Debit Prepaid Rent, Credit Cash", wrong1: "Debit Rent Expense, Credit Cash", wrong2: "Debit Cash, Credit Prepaid Rent", explanation: "Rent paid in advance is an asset (Prepaid Rent) until it is used up. It becomes Rent Expense over time through adjusting entries." },
+    { topic: "Journal Entries", question: "A customer pays the balance they owe on account. What is the entry?", correct: "Debit Cash, Credit Accounts Receivable", wrong1: "Debit Accounts Receivable, Credit Cash", wrong2: "Debit Cash, Credit Service Revenue", explanation: "The revenue was already recorded when the service was performed. Collecting the receivable increases Cash and decreases Accounts Receivable." },
+    { topic: "Adjusting Entries", question: "What is the adjusting entry to record depreciation on equipment?", correct: "Debit Depreciation Expense, Credit Accumulated Depreciation", wrong1: "Debit Accumulated Depreciation, Credit Depreciation Expense", wrong2: "Debit Depreciation Expense, Credit Equipment", explanation: "Depreciation Expense is debited, and the contra-asset Accumulated Depreciation is credited. The Equipment account itself stays at historical cost." },
+    { topic: "Accrual Accounting", question: "Under accrual accounting, when is revenue recognized?", correct: "When it is earned", wrong1: "When cash is received", wrong2: "When the contract is signed", explanation: "Accrual accounting recognizes revenue when it is earned (the performance obligation is satisfied), regardless of when cash changes hands." },
+    { topic: "Financial Statements", question: "Which statement shows a company's financial position at a specific point in time?", correct: "Balance Sheet", wrong1: "Income Statement", wrong2: "Statement of Cash Flows", explanation: "The Balance Sheet is a snapshot of assets, liabilities, and equity on one date. The Income Statement and Cash Flow Statement cover a period of time." }
+  ];
 
   // ===========================================================================
   // CONSTANTS & PALETTE
@@ -59,6 +259,12 @@
   const DISTANCE_POINTS = 4;    // points per (game-area height) traveled, so faster = more points/sec
   const DEATH_ANIM_TIME = 1.4;  // seconds the spin-and-fall lasts
   const TURN_TIME = 0.3;        // seconds for the turn-around before running
+
+  // Checkpoints (study questions)
+  const CHECKPOINT_INTERVAL = 20; // seconds of running between checkpoints
+  const CHECKPOINT_POINTS = 100;  // points for a correct answer
+  const CORRECT_PAUSE = 1.5;      // seconds to show "Correct!" before countdown
+  const COUNTDOWN_STEP = 0.8;     // seconds per number in the 3-2-1 countdown
 
   // Speeds are expressed as a fraction of the game area height per second,
   // so the game feels the same on short and tall screens.
@@ -137,7 +343,8 @@
   // ===========================================================================
   // GAME STATE
   // ===========================================================================
-  // state: 'start' | 'intro' (turn-around) | 'playing' | 'paused' | 'dying' | 'gameover'
+  // state: 'start' | 'intro' (turn-around) | 'playing' | 'paused' |
+  //        'checkpoint' (question card) | 'countdown' (3-2-1) | 'dying' | 'gameover'
   let state = 'start';
   let score = 0;
   let distancePoints = 0;       // fractional points from distance, folded into score
@@ -152,6 +359,8 @@
   let hitFlash = 0;             // red screen flash timer
   let stateTimer = 0;           // time spent in the current state
   let globalTime = 0;
+  let sinceCheckpoint = 0;      // seconds of running since the last checkpoint
+  let missed = [];              // questions answered wrong this game (no repeats)
 
   const player = {
     lane: 1,
@@ -175,6 +384,9 @@
     objects = [];
     floaters = [];
     hitFlash = 0;
+    sinceCheckpoint = 0;
+    missed = [];
+    resetQuestionDeck();
     player.lane = 1;
     player.x = player.startX = player.targetX = laneCenter(1);
     player.slideT = SLIDE_TIME;
@@ -188,9 +400,9 @@
     stateTimer = 0;
   }
 
-  // Pausing (e.g. for future question checkpoints). Speed is derived from
-  // playTime, which only advances while 'playing', so a paused run resumes at
-  // exactly the speed and difficulty it had - nothing resets.
+  // Pausing. Speed is derived from playTime, which only advances while
+  // 'playing', so any pause (including checkpoints) resumes at exactly the
+  // speed and difficulty it had - nothing resets.
   function pauseGame() {
     if (state === 'playing') setState('paused');
   }
@@ -200,6 +412,7 @@
   }
 
   function startGame() {
+    hideGameOver();
     resetGame();
     setState('intro');   // quick turn-around, then 'playing'
   }
@@ -235,22 +448,20 @@
         e.preventDefault();
         break;
       case 'Space':
-        pressStart();
+      case 'Enter':
+        if (state === 'checkpoint') continueCheckpoint();
+        else pressStart();
         e.preventDefault();
         break;
+      case 'Digit1': case 'Numpad1': answerCheckpoint(0); break;
+      case 'Digit2': case 'Numpad2': answerCheckpoint(1); break;
+      case 'Digit3': case 'Numpad3': answerCheckpoint(2); break;
     }
   });
 
-  // Tap/click handling uses game-area coordinates.
-  function handleTap(clientX, clientY) {
-    const gx = clientX - offsetX;
-    const gy = clientY;
-    if (state === 'start') {
-      startGame();
-    } else if (state === 'gameover' && stateTimer > 0.4) {
-      const b = playAgainButton();
-      if (gx >= b.x && gx <= b.x + b.w && gy >= b.y && gy <= b.y + b.h) startGame();
-    }
+  // Tap/click on the canvas (the Play Again and answer buttons are HTML).
+  function handleTap() {
+    if (state === 'start') startGame();
   }
 
   let touchStart = null;
@@ -275,17 +486,183 @@
     if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy)) {
       moveLane(dx > 0 ? 1 : -1);
     } else if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) {
-      handleTap(t.clientX, t.clientY);
+      handleTap();
     }
     touchStart = null;
   }, { passive: false });
 
-  // Mouse clicks (desktop) for start screen and Play Again button.
-  canvas.addEventListener('mousedown', (e) => {
-    handleTap(e.clientX, e.clientY);
+  // Mouse clicks (desktop) for the start screen.
+  canvas.addEventListener('mousedown', () => {
+    handleTap();
   });
 
   window.addEventListener('resize', resize);
+
+  // ===========================================================================
+  // CHECKPOINTS: STUDY QUESTIONS
+  // ===========================================================================
+  // Questions are dealt from a shuffled deck; when it runs out it is
+  // reshuffled (avoiding an immediate repeat of the last question).
+  let questionDeck = [];
+  let lastQuestion = null;
+  let checkpoint = null;   // { q, choices: [{text, correct}], phase: 'ask'|'correct'|'wrong', resolvedAt }
+
+  const cpEl = document.getElementById('checkpoint');
+  const cpTopic = document.getElementById('cp-topic');
+  const cpQuestion = document.getElementById('cp-question');
+  const cpAnswers = document.getElementById('cp-answers');
+  const cpFeedback = document.getElementById('cp-feedback');
+  const cpResult = document.getElementById('cp-result');
+  const cpExpl = document.getElementById('cp-expl');
+  const cpContinue = document.getElementById('cp-continue');
+
+  function resetQuestionDeck() {
+    questionDeck = [];
+    lastQuestion = null;
+  }
+
+  function nextQuestion() {
+    if (questionDeck.length === 0) {
+      questionDeck = shuffle(QUESTIONS.slice());
+      // Don't show the same question twice in a row across a reshuffle.
+      if (questionDeck.length > 1 && questionDeck[questionDeck.length - 1] === lastQuestion) {
+        [questionDeck[0], questionDeck[questionDeck.length - 1]] =
+          [questionDeck[questionDeck.length - 1], questionDeck[0]];
+      }
+    }
+    lastQuestion = questionDeck.pop();
+    return lastQuestion;
+  }
+
+  function startCheckpoint() {
+    const q = nextQuestion();
+    const choices = shuffle([
+      { text: q.correct, correct: true },
+      { text: q.wrong1, correct: false },
+      { text: q.wrong2, correct: false },
+    ]);
+    checkpoint = { q, choices, phase: 'ask', resolvedAt: 0 };
+    touchStart = null;
+
+    cpTopic.textContent = q.topic;
+    cpQuestion.textContent = q.question;
+    cpAnswers.innerHTML = '';
+    choices.forEach((c, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'answer';
+      const num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = String(i + 1);
+      const txt = document.createElement('span');
+      txt.textContent = c.text;
+      btn.append(num, txt);
+      btn.addEventListener('click', () => answerCheckpoint(i));
+      cpAnswers.appendChild(btn);
+    });
+    cpFeedback.hidden = true;
+    cpContinue.hidden = true;
+    cpEl.hidden = false;
+    cpEl.querySelector('.card').scrollTop = 0;
+    setState('checkpoint');
+  }
+
+  function answerCheckpoint(index) {
+    if (state !== 'checkpoint' || !checkpoint || checkpoint.phase !== 'ask') return;
+    const buttons = cpAnswers.querySelectorAll('.answer');
+    if (index < 0 || index >= buttons.length) return;
+    const chosen = checkpoint.choices[index];
+    buttons.forEach((b, i) => {
+      b.disabled = true;
+      if (checkpoint.choices[i].correct) b.classList.add('correct');
+      else if (i === index) b.classList.add('wrong');
+      else b.classList.add('faded');
+    });
+    cpFeedback.hidden = false;
+    checkpoint.resolvedAt = stateTimer;
+
+    if (chosen.correct) {
+      checkpoint.phase = 'correct';
+      score += CHECKPOINT_POINTS;
+      cpResult.textContent = 'Correct! +' + CHECKPOINT_POINTS;
+      cpResult.className = 'cp-result good';
+      cpExpl.hidden = true;
+      cpContinue.hidden = true;
+    } else {
+      checkpoint.phase = 'wrong';
+      if (!missed.includes(checkpoint.q)) missed.push(checkpoint.q);
+      lives = Math.max(0, lives - 1);
+      if (lives === 0) {
+        // Last heart lost on a question: straight to Game Over.
+        closeCheckpoint();
+        player.deathT = DEATH_ANIM_TIME;   // show her already fallen
+        showGameOver();
+        return;
+      }
+      cpResult.textContent = 'Not quite. -1 heart';
+      cpResult.className = 'cp-result bad';
+      cpExpl.textContent = checkpoint.q.explanation;
+      cpExpl.hidden = false;
+      cpContinue.hidden = false;
+      cpContinue.focus({ preventScroll: true });
+    }
+    // Make sure the feedback is visible on short screens.
+    cpFeedback.scrollIntoView({ block: 'nearest' });
+  }
+
+  function continueCheckpoint() {
+    if (state === 'checkpoint' && checkpoint && checkpoint.phase === 'wrong') startCountdown();
+  }
+
+  function closeCheckpoint() {
+    cpEl.hidden = true;
+    checkpoint = null;
+  }
+
+  function startCountdown() {
+    closeCheckpoint();
+    setState('countdown');
+  }
+
+  cpContinue.addEventListener('click', continueCheckpoint);
+
+  // ---- Game over screen (HTML) ----
+  const goEl = document.getElementById('gameover');
+  const goScore = document.getElementById('go-score');
+  const goList = document.getElementById('go-list');
+  document.getElementById('go-again').addEventListener('click', () => {
+    if (state === 'gameover') startGame();
+  });
+
+  function showGameOver() {
+    setState('gameover');
+    goScore.textContent = 'Score: ' + score;
+    goList.innerHTML = '';
+    if (missed.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'go-empty';
+      p.textContent = 'No missed questions. Nice work!';
+      goList.appendChild(p);
+    }
+    for (const q of missed) {
+      const item = document.createElement('div');
+      item.className = 'go-item';
+      const t = document.createElement('div'); t.className = 't'; t.textContent = q.topic;
+      const qq = document.createElement('div'); qq.className = 'q'; qq.textContent = q.question;
+      const a = document.createElement('div'); a.className = 'a';
+      const b = document.createElement('b'); b.textContent = q.correct;
+      a.append('Correct answer: ', b);
+      const e = document.createElement('div'); e.className = 'e'; e.textContent = q.explanation;
+      item.append(t, qq, a, e);
+      goList.appendChild(item);
+    }
+    goList.scrollTop = 0;
+    goEl.hidden = false;
+  }
+
+  function hideGameOver() {
+    goEl.hidden = true;
+  }
 
   // ===========================================================================
   // SPAWNING: OBSTACLE & COIN ROWS
@@ -426,6 +803,21 @@
   }
 
   function update(dt) {
+    // Checkpoints freeze the game completely (no time-based animation either).
+    if (state === 'checkpoint') {
+      stateTimer += dt;
+      if (checkpoint && checkpoint.phase === 'correct' &&
+          stateTimer - checkpoint.resolvedAt >= CORRECT_PAUSE) {
+        startCountdown();
+      }
+      return;
+    }
+    if (state === 'countdown') {
+      stateTimer += dt;
+      if (stateTimer >= COUNTDOWN_STEP * 3) setState('playing');
+      return;
+    }
+
     globalTime += dt;
     stateTimer += dt;
     hitFlash = Math.max(0, hitFlash - dt);
@@ -449,7 +841,7 @@
 
     if (state === 'dying') {
       player.deathT += dt;
-      if (player.deathT >= DEATH_ANIM_TIME + 0.4) setState('gameover');
+      if (player.deathT >= DEATH_ANIM_TIME + 0.4) showGameOver();
       return;
     }
 
@@ -474,6 +866,14 @@
     if (distSinceRow >= rowGapPx()) {
       distSinceRow = 0;   // reset (not subtract) so rows are never closer than the gap
       spawnRow();
+    }
+
+    // --- Checkpoint timer (counts running time only) ---
+    sinceCheckpoint += dt;
+    if (sinceCheckpoint >= CHECKPOINT_INTERVAL) {
+      sinceCheckpoint = 0;
+      startCheckpoint();
+      return;
     }
 
     // --- Player ---
@@ -1186,56 +1586,26 @@
     layoutStartText(cx, py, panelW, true);
   }
 
-  function playAgainButton() {
-    const w = Math.min(220, W - 80);
-    const h = 54;
-    return { x: W / 2 - w / 2, y: H / 2 + 50, w, h };
-  }
-
-  function drawGameOverScreen() {
-    const cx = W / 2;
-
-    ctx.fillStyle = 'rgba(30,42,74,0.6)';
+  // Big 3-2-1 over a lightly dimmed, frozen game.
+  function drawCountdown() {
+    const n = 3 - Math.min(2, Math.floor(stateTimer / COUNTDOWN_STEP));
+    const t = (stateTimer % COUNTDOWN_STEP) / COUNTDOWN_STEP;   // 0..1 within this number
+    ctx.fillStyle = 'rgba(30,42,74,0.35)';
     ctx.fillRect(0, 0, W, H);
-
-    const panelW = Math.min(W - 32, 380);
-    const panelH = 290;
-    const px = cx - panelW / 2;
-    const py = H / 2 - 150;
-    ctx.fillStyle = COLORS.white;
-    roundRect(px, py, panelW, panelH, 18);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.red;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
+    ctx.save();
+    ctx.translate(W / 2, H * 0.42);
+    const scale = 1.4 - 0.4 * easeOutCubic(Math.min(1, t * 2));
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = 1 - Math.max(0, t - 0.7) / 0.3 * 0.6;
+    ctx.font = `900 ${Math.round(Math.min(120, W * 0.3))}px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `900 ${Math.round(Math.min(48, panelW / 6.5))}px ${FONT}`;
-    ctx.fillStyle = COLORS.red;
-    ctx.fillText('Game Over', cx, py + 55);
-
-    ctx.font = `bold 24px ${FONT}`;
-    ctx.fillStyle = COLORS.navy;
-    ctx.fillText('Score: ' + score, cx, py + 115);
-
-    const b = playAgainButton();
-    const pulse = 1 + Math.sin(globalTime * 4) * 0.03;
-    ctx.save();
-    ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
-    ctx.scale(pulse, pulse);
-    ctx.fillStyle = COLORS.goldDark;
-    roundRect(-b.w / 2, -b.h / 2 + 4, b.w, b.h, 14); ctx.fill();
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = COLORS.navy;
+    ctx.strokeText(String(n), 0, 0);
     ctx.fillStyle = COLORS.gold;
-    roundRect(-b.w / 2, -b.h / 2, b.w, b.h, 14); ctx.fill();
-    ctx.fillStyle = COLORS.navy;
-    ctx.font = `bold 22px ${FONT}`;
-    ctx.fillText('Play Again', 0, 1);
+    ctx.fillText(String(n), 0, 0);
     ctx.restore();
-
-    ctx.font = `14px ${FONT}`;
-    ctx.fillStyle = 'rgba(30,42,74,0.7)';
-    ctx.fillText('or press Space', cx, b.y + b.h + 24);
   }
 
   // ===========================================================================
@@ -1269,7 +1639,7 @@
       drawStartScreen();
     } else {
       drawHUD();
-      if (state === 'gameover') drawGameOverScreen();
+      if (state === 'countdown') drawCountdown();
     }
 
     ctx.restore();
