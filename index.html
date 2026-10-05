@@ -262,6 +262,7 @@
 
   // Checkpoints (study questions)
   const CHECKPOINT_INTERVAL = 20; // seconds of running between checkpoints
+  const FIRST_CHECKPOINT = 8;     // first question comes sooner, so even short runs get one
   const CHECKPOINT_POINTS = 100;  // points for a correct answer
   const CORRECT_PAUSE = 1.5;      // seconds to show "Correct!" before countdown
   const COUNTDOWN_STEP = 0.8;     // seconds per number in the 3-2-1 countdown
@@ -384,7 +385,7 @@
     objects = [];
     floaters = [];
     hitFlash = 0;
-    sinceCheckpoint = 0;
+    sinceCheckpoint = CHECKPOINT_INTERVAL - FIRST_CHECKPOINT;
     missed = [];
     resetQuestionDeck();
     player.lane = 1;
