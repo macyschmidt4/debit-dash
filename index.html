@@ -57,14 +57,44 @@
     -webkit-user-select: none;
     user-select: none;
   }
+  /* Title: navy letters, chunky gold outline, soft drop shadow, coin icon. */
   .start-title {
     margin: 0;
-    font-size: clamp(38px, 12vw, 56px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.18em;
+    white-space: nowrap;
+    font-size: clamp(30px, 10.5vw, 56px);
     font-weight: 900;
     line-height: 1.05;
+    letter-spacing: 0.01em;
     color: #1e2a4a;
-    text-shadow: 3px 3px 0 #f9a825;
+    text-shadow:
+      -2px -2px 0 #f9a825, 2px -2px 0 #f9a825, -2px 2px 0 #f9a825, 2px 2px 0 #f9a825,
+      0 -2px 0 #f9a825, 0 2px 0 #f9a825, -2px 0 0 #f9a825, 2px 0 0 #f9a825,
+      3px 5px 0 rgba(30, 42, 74, 0.22);
+    transform: rotate(-2deg);
   }
+  .coin-icon {
+    flex: 0 0 auto;
+    width: 0.66em;
+    height: 0.66em;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 0.06em solid #c17900;
+    background: radial-gradient(circle at 35% 30%, #fff3c4 0 12%, #ffd54f 30%, #f9a825 70%);
+    box-shadow: 0 0.05em 0 #c17900, 0 0.1em 0.18em rgba(0, 0, 0, 0.25);
+    color: #8d5a00;
+    font-size: 1em;
+    text-shadow: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: coinspin 2.4s ease-in-out infinite;
+  }
+  .coin-icon::before { content: "$"; font-size: 0.42em; font-weight: 900; line-height: 1; }
+  @keyframes coinspin { 0%, 70%, 100% { transform: scaleX(1); } 80% { transform: scaleX(0.15); } 90% { transform: scaleX(1); } }
   #start-hero { display: block; margin: 6px auto 2px; }
   .rule { height: 2px; width: 60%; margin: 4px auto 10px; background: #2e7d32; flex: 0 0 auto; }
   .howto-title { font-size: 16px; font-weight: 800; color: #2e7d32; margin-bottom: 4px; }
@@ -92,24 +122,28 @@
   .mm-list li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; overflow-wrap: anywhere; }
   .mm-list li span:last-child { flex: 0 0 auto; font-weight: 700; color: #e53935; }
   .mm-empty { margin: 4px 0 0; font-size: 14px; color: #37474f; }
+  /* Small secondary pill buttons (Reset Stats, Main Menu). */
   .link-btn {
-    border: none;
-    background: none;
-    padding: 4px 2px;
+    border: 1.5px solid #cfd8dc;
+    background: #ffffff;
+    border-radius: 999px;
+    padding: 5px 12px;
     font: inherit;
     font-size: 13px;
     font-weight: 700;
     color: #546e7a;
-    text-decoration: underline;
     white-space: nowrap;
     cursor: pointer;
+    box-shadow: 0 2px 0 #cfd8dc, 0 3px 8px rgba(30, 42, 74, 0.1);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, color 0.12s ease;
     touch-action: manipulation;
   }
+  .link-btn:active { transform: translateY(2px); box-shadow: 0 0 0 #cfd8dc, 0 1px 3px rgba(30, 42, 74, 0.12); }
   .reset-confirm { margin-top: 6px; font-size: 14px; font-weight: 700; }
   /* Short screens: tighten the start card so it fits without scrolling. */
   @media (max-height: 560px) {
     .start-card { padding: 10px 12px; }
-    .start-title { font-size: 34px; }
+    .start-title { font-size: min(34px, 10.5vw); }
     #start-hero { margin: 2px auto 0; }
     .rule { margin: 2px auto 6px; }
     .howto-title { font-size: 14px; margin-bottom: 2px; }
@@ -123,8 +157,8 @@
   .reset-confirm[hidden] { display: none; }
   .reset-confirm .small-btn {
     margin: 6px 6px 0 0;
-    padding: 6px 12px;
-    border-radius: 8px;
+    padding: 6px 14px;
+    border-radius: 10px;
     border: 2px solid #1e2a4a;
     background: #ffffff;
     color: #1e2a4a;
@@ -132,9 +166,12 @@
     font-size: 14px;
     font-weight: 800;
     cursor: pointer;
+    box-shadow: 0 3px 0 #1e2a4a, 0 4px 10px rgba(30, 42, 74, 0.15);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
     touch-action: manipulation;
   }
-  .reset-confirm .small-btn.danger { background: #e53935; border-color: #e53935; color: #ffffff; }
+  .reset-confirm .small-btn.danger { background: #e53935; border-color: #b71c1c; color: #ffffff; box-shadow: 0 3px 0 #b71c1c, 0 4px 10px rgba(183, 28, 28, 0.25); }
+  .reset-confirm .small-btn:active { transform: translateY(3px); box-shadow: 0 0 0 #1e2a4a, 0 1px 3px rgba(30, 42, 74, 0.15); }
   .card {
     background: #ffffff;
     border-radius: 18px;
@@ -186,7 +223,7 @@
     box-sizing: border-box;
     padding: 10px 14px;
     border: 2px solid #c5cae9;
-    border-radius: 12px;
+    border-radius: 14px;
     background: #f5f7ff;
     color: #1e2a4a;
     font: inherit;
@@ -196,9 +233,11 @@
     cursor: pointer;
     white-space: normal;
     overflow-wrap: anywhere;
+    box-shadow: 0 3px 0 #c5cae9, 0 4px 12px rgba(30, 42, 74, 0.08);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.2s ease;
     touch-action: manipulation;
   }
-  .answer:hover:not(:disabled) { border-color: #1e2a4a; }
+  .answer:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 #c5cae9, 0 1px 4px rgba(30, 42, 74, 0.1); }
   .answer:disabled { cursor: default; }
   .answer .num {
     flex: 0 0 auto;
@@ -212,9 +251,9 @@
     justify-content: center;
     font-weight: 800;
   }
-  .answer.correct { background: #e8f5e9; border-color: #2e7d32; }
+  .answer.correct { background: #e8f5e9; border-color: #2e7d32; box-shadow: 0 3px 0 #2e7d32, 0 4px 12px rgba(46, 125, 50, 0.2); }
   .answer.correct .num { background: #2e7d32; }
-  .answer.wrong { background: #ffebee; border-color: #e53935; }
+  .answer.wrong { background: #ffebee; border-color: #e53935; box-shadow: 0 3px 0 #e53935, 0 4px 12px rgba(229, 57, 53, 0.2); }
   .answer.wrong .num { background: #e53935; }
   .answer.faded { opacity: 0.5; }
   .cp-feedback { margin-top: 14px; text-align: center; }
@@ -235,17 +274,35 @@
     min-width: 180px;
     padding: 12px 24px;
     border: none;
-    border-radius: 14px;
-    background: #f9a825;
+    border-radius: 16px;
+    background: linear-gradient(#ffca3a, #f9a825);
     color: #1e2a4a;
     font: inherit;
     font-size: 19px;
     font-weight: 800;
     cursor: pointer;
-    box-shadow: 0 4px 0 #c17900;
+    box-shadow: 0 4px 0 #c17900, 0 8px 18px rgba(30, 42, 74, 0.2);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
     touch-action: manipulation;
   }
+  .btn:active { transform: translateY(4px); box-shadow: 0 0 0 #c17900, 0 2px 6px rgba(30, 42, 74, 0.2); }
   .btn[hidden] { display: none; }
+
+  /* Hover lift only on devices that really hover (avoids sticky hover on phones). */
+  @media (hover: hover) {
+    .btn:hover { transform: translateY(-2px); filter: brightness(1.04); box-shadow: 0 6px 0 #c17900, 0 12px 22px rgba(30, 42, 74, 0.22); }
+    .btn:active { transform: translateY(4px); box-shadow: 0 0 0 #c17900, 0 2px 6px rgba(30, 42, 74, 0.2); }
+    .answer:hover:not(:disabled) { transform: translateY(-2px); border-color: #1e2a4a; box-shadow: 0 5px 0 #9fa8da, 0 8px 16px rgba(30, 42, 74, 0.12); }
+    .answer:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 #c5cae9, 0 1px 4px rgba(30, 42, 74, 0.1); }
+    .link-btn:hover { transform: translateY(-1px); color: #1e2a4a; box-shadow: 0 3px 0 #cfd8dc, 0 5px 12px rgba(30, 42, 74, 0.14); }
+    .link-btn:active { transform: translateY(2px); box-shadow: 0 0 0 #cfd8dc, 0 1px 3px rgba(30, 42, 74, 0.12); }
+    .reset-confirm .small-btn:hover { transform: translateY(-1px); }
+    .reset-confirm .small-btn:active { transform: translateY(3px); box-shadow: 0 0 0 #1e2a4a, 0 1px 3px rgba(30, 42, 74, 0.15); }
+  }
+  .btn:focus-visible, .answer:focus-visible, .link-btn:focus-visible, .small-btn:focus-visible {
+    outline: 3px solid #42a5f5;
+    outline-offset: 2px;
+  }
   .hint { text-align: center; font-size: 13px; color: rgba(30, 42, 74, 0.65); margin-top: 8px; }
 
   /* Game over card: header and button stay put, the review list scrolls. */
@@ -266,7 +323,7 @@
   }
   .go-new[hidden] { display: none; }
   @keyframes pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
-  .go-menu { align-self: center; margin-top: 6px; }
+  .go-menu { align-self: center; margin-top: 8px; }
   .go-review-title { font-size: 16px; font-weight: 800; margin: 0 0 8px; color: #2e7d32; }
   .go-list {
     flex: 1 1 auto;
@@ -294,7 +351,7 @@
 <!-- Start screen -->
 <div id="start" class="overlay clear" hidden>
   <div class="card start-card" id="start-card">
-    <h1 class="start-title">Debit Dash</h1>
+    <h1 class="start-title"><span class="coin-icon" aria-hidden="true"></span><span>Debit Dash</span></h1>
     <canvas id="start-hero" aria-hidden="true"></canvas>
     <div class="rule"></div>
     <div class="howto-title">How to play</div>
@@ -517,6 +574,9 @@
   let objects = [];             // obstacles and coins
   let floaters = [];            // "+10" popups
   let sparkles = [];            // coin-collect sparkle particles
+  let dust = [];                // lane-switch dust puffs (visual only)
+  let shakeT = 0;               // screen shake timer (visual only)
+  const SHAKE_TIME = 0.2;
   let hitFlash = 0;             // red screen flash timer
   let stateTimer = 0;           // time spent in the current state
   let globalTime = 0;
@@ -545,6 +605,8 @@
     objects = [];
     floaters = [];
     sparkles = [];
+    dust = [];
+    shakeT = 0;
     hitFlash = 0;
     sinceCheckpoint = CHECKPOINT_INTERVAL - FIRST_CHECKPOINT;
     missed = [];
@@ -591,6 +653,7 @@
     player.startX = player.x;            // slide from wherever we are now
     player.targetX = laneCenter(newLane);
     player.slideT = 0;
+    spawnDust(player.x, playerBaseY(), dir);
   }
 
   function pressStart() {
@@ -1102,6 +1165,7 @@
   function hitPlayer() {
     lives -= 1;
     hitFlash = 0.25;
+    shakeT = SHAKE_TIME;
     if (lives <= 0) {
       lives = 0;
       player.deathT = 0;
@@ -1143,6 +1207,14 @@
       p.life -= dt;
     }
     sparkles = sparkles.filter((p) => p.life > 0);
+    for (const d of dust) {
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.vx *= 0.88;
+      d.life -= dt;
+    }
+    dust = dust.filter((d) => d.life > 0);
+    shakeT = Math.max(0, shakeT - dt);
 
     if (state === 'start') {
       // Gentle idle scroll on the title screen.
@@ -1528,9 +1600,12 @@
     const lw = T * 0.07;
 
     ctx.save();
-    // Drop shadow (offset straight down, so it stays inside the lane)
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    roundRect(left, top + T * 0.06, T, T, r);
+    // Soft grounded shadow, offset straight down so it stays inside the lane
+    ctx.fillStyle = 'rgba(30,42,74,0.10)';
+    roundRect(left + T * 0.02, top + T * 0.1, T * 0.96, T * 0.98, r);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(30,42,74,0.14)';
+    roundRect(left, top + T * 0.05, T, T, r);
     ctx.fill();
 
     // Tile body; everything after this is clipped to the tile
@@ -1698,8 +1773,11 @@
     ctx.save();
     ctx.translate(x, y);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.beginPath(); ctx.ellipse(0, r + 3 * s, r * 0.8 * squash, 3 * s, 0, 0, Math.PI * 2); ctx.fill();
+    // Soft grounded shadow (two layers for a blurred edge)
+    ctx.fillStyle = 'rgba(30,42,74,0.08)';
+    ctx.beginPath(); ctx.ellipse(0, r + 5 * s, r * 0.95, 4.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(30,42,74,0.12)';
+    ctx.beginPath(); ctx.ellipse(0, r + 5 * s, r * 0.65 * squash, 3 * s, 0, 0, Math.PI * 2); ctx.fill();
 
     ctx.scale(squash, 1);
     ctx.fillStyle = COLORS.goldDark;
@@ -1747,7 +1825,7 @@
         spin: (Math.random() - 0.5) * 10,
         life: 0.5 + Math.random() * 0.2,
         max: 0.7,
-        color: i % 3 === 0 ? COLORS.white : (i % 3 === 1 ? COLORS.gold : '#fff59d'),
+        color: i % 4 === 0 ? COLORS.white : (i % 4 === 1 ? '#ffe082' : COLORS.gold),
       });
     }
   }
@@ -1786,6 +1864,201 @@
     ctx.restore();
   }
 
+  // Lane-switch dust puff: a few soft circles kicked out behind her feet.
+  function spawnDust(x, y, dir) {
+    for (let i = 0; i < 6; i++) {
+      dust.push({
+        x: x + (Math.random() - 0.5) * 10 * u,
+        y: y - Math.random() * 4 * u,
+        vx: (-dir * (40 + Math.random() * 60) + (Math.random() - 0.5) * 30) * u,
+        vy: -(10 + Math.random() * 25) * u,
+        r: (4 + Math.random() * 3) * u,
+        life: 0.35 + Math.random() * 0.15,
+        max: 0.5,
+      });
+    }
+  }
+
+  function drawDust() {
+    for (const d of dust) {
+      const k = Math.max(0, d.life / d.max);
+      ctx.fillStyle = `rgba(150,140,120,${0.55 * k})`;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r * (1.8 - k), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ===========================================================================
+  // DRAWING: OFFICE SCENERY & SPEED LINES (visual only)
+  // ===========================================================================
+  // Scenery items sit on a virtual track that scrolls with the world. Each
+  // slot's item type and position come from a hash of its index, so items stay
+  // put as they scroll without storing any state.
+  function hash01(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  // Each drawer draws one item centered at (0,0) in a 40x40 box.
+  const SCENERY = [
+    function plant() {
+      ctx.fillStyle = '#2e7d32';
+      for (const [lx, ly, a] of [[-7, -8, -0.6], [7, -8, 0.6], [0, -13, 0], [-11, -2, -1.1], [11, -2, 1.1]]) {
+        ctx.save(); ctx.translate(lx, ly); ctx.rotate(a);
+        ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 9, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = '#43a047';
+      ctx.beginPath(); ctx.ellipse(0, -6, 3.5, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c66a3d';
+      ctx.beginPath();
+      ctx.moveTo(-10, 2); ctx.lineTo(10, 2); ctx.lineTo(7, 18); ctx.lineTo(-7, 18);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#a5532d';
+      ctx.fillRect(-11, 1, 22, 4);
+    },
+    function mug() {
+      ctx.strokeStyle = '#eceff1';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(11, 2, 5, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      ctx.fillStyle = '#eceff1';
+      roundRect(-10, -9, 21, 24, 4); ctx.fill();
+      ctx.fillStyle = '#e53935';
+      ctx.fillRect(-10, 0, 21, 5);
+      ctx.fillStyle = '#6d4c41';
+      ctx.beginPath(); ctx.ellipse(0.5, -8, 9, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+      // steam
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      for (const sx of [-3, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(sx, -13);
+        ctx.quadraticCurveTo(sx - 3, -16, sx, -19);
+        ctx.quadraticCurveTo(sx + 3, -22, sx, -25);
+        ctx.stroke();
+      }
+    },
+    function cabinet() {
+      ctx.fillStyle = '#90a4ae';
+      roundRect(-13, -19, 26, 38, 3); ctx.fill();
+      ctx.fillStyle = '#b0bec5';
+      for (let i = 0; i < 3; i++) {
+        roundRect(-10, -16 + i * 12, 20, 10, 2); ctx.fill();
+      }
+      ctx.fillStyle = '#546e7a';
+      for (let i = 0; i < 3; i++) ctx.fillRect(-4, -12 + i * 12, 8, 2);
+    },
+    function sticky() {
+      ctx.rotate(0.12);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(-12, -10, 26, 26);
+      ctx.fillStyle = '#fff176';
+      ctx.fillRect(-13, -13, 26, 26);
+      ctx.fillStyle = '#fdd835';
+      ctx.fillRect(-13, -13, 26, 5);
+      ctx.strokeStyle = 'rgba(30,42,74,0.45)';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.moveTo(-8, -2 + i * 5); ctx.lineTo(i === 2 ? 2 : 8, -2 + i * 5); ctx.stroke();
+      }
+    },
+  ];
+
+  // Draw scenery down one side. cx: item center x; size: item size in px.
+  function drawSceneryColumn(cx, size, spacing, side, alpha, jitterX) {
+    const off = scroll % spacing;
+    const base = Math.floor(scroll / spacing);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    for (let i = -1; i * spacing < H + spacing; i++) {
+      const idx = base - i;                       // stable id for this slot
+      const hA = hash01(idx * 3.1 + side * 17.3);
+      const hB = hash01(idx * 7.7 + side * 5.9);
+      if (hB < 0.18) continue;                     // leave some gaps
+      const y = i * spacing + off + (hB - 0.5) * spacing * 0.3;
+      ctx.save();
+      ctx.translate(cx + (hA - 0.5) * jitterX, y);
+      ctx.scale(size / 40, size / 40);
+      SCENERY[Math.floor(hA * SCENERY.length) % SCENERY.length]();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // Wide screens: scenery in the navy margins beside the game area.
+  function drawMarginScenery() {
+    if (offsetX < 48) return;
+    const size = Math.min(58, offsetX * 0.55);
+    const cxL = offsetX - Math.min(offsetX / 2, 80);
+    const cxR = offsetX + W + Math.min(offsetX / 2, 80);
+    // Soft shade along the paper edges so the ledger sits "on" the desk
+    const g1 = ctx.createLinearGradient(offsetX - 14, 0, offsetX, 0);
+    g1.addColorStop(0, 'rgba(0,0,0,0)'); g1.addColorStop(1, 'rgba(0,0,0,0.25)');
+    ctx.fillStyle = g1; ctx.fillRect(offsetX - 14, 0, 14, viewH);
+    const g2 = ctx.createLinearGradient(offsetX + W, 0, offsetX + W + 14, 0);
+    g2.addColorStop(0, 'rgba(0,0,0,0.25)'); g2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g2; ctx.fillRect(offsetX + W, 0, 14, viewH);
+    drawSceneryColumn(cxL, size, size * 2.6, 0, 0.6, Math.min(30, offsetX * 0.2));
+    drawSceneryColumn(cxR, size, size * 2.6, 1, 0.6, Math.min(30, offsetX * 0.2));
+  }
+
+  // Narrow screens: small items peek in at the very edges of the paper, inside
+  // the padding outside the outer lanes' tiles, so they never cover gameplay.
+  function drawEdgeScenery() {
+    if (offsetX >= 48) return;
+    const size = laneW * 0.22;     // half of it (<= 0.11 laneW) shows on screen
+    drawSceneryColumn(0, size, size * 4.2, 0, 0.4, 0);
+    drawSceneryColumn(W, size, size * 4.2, 1, 0.4, 0);
+  }
+
+  // Faint speed streaks along the edges; fade in as speed rises.
+  function drawSpeedLines() {
+    if (state !== 'playing' && state !== 'countdown' && state !== 'checkpoint') return;
+    const k = (speed - START_SPEED) / (MAX_SPEED - START_SPEED);
+    if (k <= 0.05) return;
+    const strip = laneW * 0.11;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let side = 0; side < 2; side++) {
+      for (let i = 0; i < 5; i++) {
+        const seed = hash01(i * 13.7 + side * 3.3);
+        const len = (40 + seed * 60) * u;
+        const y = ((scroll * 1.7 + seed * H * 3) % (H + len)) - len;
+        const xIn = 3 + hash01(i * 5.1 + side) * (strip - 6);
+        const x = side === 0 ? xIn : W - xIn;
+        ctx.strokeStyle = `rgba(46,125,50,${0.28 * k})`;
+        ctx.lineWidth = 1.5 + seed;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + len); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Speed streaks in the navy margins too, on wide screens.
+  function drawMarginSpeedLines() {
+    if (offsetX < 48 || state !== 'playing') return;
+    const k = (speed - START_SPEED) / (MAX_SPEED - START_SPEED);
+    if (k <= 0.05) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let side = 0; side < 2; side++) {
+      for (let i = 0; i < 6; i++) {
+        const seed = hash01(i * 9.3 + side * 7.1 + 1);
+        const len = 50 + seed * 80;
+        const y = ((scroll * 2 + seed * viewH * 3) % (viewH + len)) - len;
+        const d = 18 + hash01(i * 2.7 + side * 4.4) * Math.min(offsetX - 24, 120);
+        const x = side === 0 ? offsetX - d : offsetX + W + d;
+        ctx.strokeStyle = `rgba(255,255,255,${0.12 * k})`;
+        ctx.lineWidth = 1.5 + seed;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + len); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   // ===========================================================================
   // DRAWING: HUD (HEARTS & SCORE)
   // ===========================================================================
@@ -1814,25 +2087,38 @@
     ctx.restore();
   }
 
-  function drawHUD() {
-    const pad = 12;
-    const size = Math.max(22, 28 * u);
+  // Semi-transparent rounded HUD panel with a soft shadow.
+  function hudPanel(x, y, w, h) {
+    const r = Math.min(14, h / 2);
+    ctx.fillStyle = 'rgba(30,42,74,0.12)';
+    roundRect(x, y + 3, w, h, r); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    roundRect(x, y, w, h, r); ctx.fill();
+    ctx.strokeStyle = 'rgba(30,42,74,0.12)';
+    ctx.lineWidth = 1;
+    roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r); ctx.stroke();
+  }
 
-    // Hearts, top-left
+  function drawHUD() {
+    const pad = 10;
+    const size = Math.max(20, 26 * u);
+    const gap = 5;
+    const ph = size + 12;
+
+    // Hearts, top-left, on a panel
+    const heartsW = MAX_LIVES * size + (MAX_LIVES - 1) * gap + 16;
+    hudPanel(pad, pad, heartsW, ph);
     for (let i = 0; i < MAX_LIVES; i++) {
-      drawHeart(pad + size / 2 + i * (size + 6), pad + size / 2 + 2, size, i < lives);
+      drawHeart(pad + 8 + size / 2 + i * (size + gap), pad + ph / 2 + 2, size, i < lives);
     }
 
-    // Score, top-right on a pill
+    // Score, top-right, on a matching panel
     const text = 'Score: ' + score;
-    ctx.font = `bold ${Math.round(Math.max(16, 20 * u))}px ${FONT}`;
+    ctx.font = `800 ${Math.round(Math.max(16, 19 * u))}px ${FONT}`;
     const tw = ctx.measureText(text).width;
-    const ph = Math.max(28, 32 * u);
-    const pw = tw + 24;
-    ctx.fillStyle = 'rgba(30,42,74,0.88)';
-    roundRect(W - pad - pw, pad, pw, ph, ph / 2);
-    ctx.fill();
-    ctx.fillStyle = COLORS.white;
+    const pw = tw + 26;
+    hudPanel(W - pad - pw, pad, pw, ph);
+    ctx.fillStyle = COLORS.navy;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, W - pad - pw / 2, pad + ph / 2 + 1);
@@ -1886,9 +2172,11 @@
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Navy surround outside the game area.
+    // Navy surround outside the game area, with office scenery on wide screens.
     ctx.fillStyle = COLORS.navy;
     ctx.fillRect(0, 0, viewW, viewH);
+    drawMarginScenery();
+    drawMarginSpeedLines();
 
     // Everything else draws inside the clipped, centered game area.
     ctx.save();
@@ -1897,8 +2185,20 @@
     ctx.rect(0, 0, W, H);
     ctx.clip();
 
+    // Brief screen shake after a hit (purely visual). Paper color underneath
+    // so the shifted scene never shows a navy sliver at the edges.
+    ctx.fillStyle = COLORS.ledger;
+    ctx.fillRect(0, 0, W, H);
+    if (shakeT > 0) {
+      const a = (shakeT / SHAKE_TIME) * 6 * u;
+      ctx.translate((Math.random() - 0.5) * 2 * a, (Math.random() - 0.5) * 2 * a);
+    }
+
     drawBackground();
+    drawEdgeScenery();
+    drawSpeedLines();
     drawObjects();
+    drawDust();
     drawPlayer();
     drawSparkles();
     drawFloaters();
