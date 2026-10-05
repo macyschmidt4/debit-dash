@@ -58,6 +58,7 @@
   const COIN_RADIUS = 13;       // in drawing units (u)
   const DISTANCE_POINTS = 4;    // points per (game-area height) traveled, so faster = more points/sec
   const DEATH_ANIM_TIME = 1.4;  // seconds the spin-and-fall lasts
+  const TURN_TIME = 0.3;        // seconds for the turn-around before running
 
   // Speeds are expressed as a fraction of the game area height per second,
   // so the game feels the same on short and tall screens.
@@ -132,7 +133,7 @@
   // ===========================================================================
   // GAME STATE
   // ===========================================================================
-  // state: 'start' | 'playing' | 'dying' | 'gameover'
+  // state: 'start' | 'intro' (turn-around) | 'playing' | 'dying' | 'gameover'
   let state = 'start';
   let score = 0;
   let distancePoints = 0;       // fractional points from distance, folded into score
@@ -185,7 +186,7 @@
 
   function startGame() {
     resetGame();
-    setState('playing');
+    setState('intro');   // quick turn-around, then 'playing'
   }
 
   // ===========================================================================
@@ -422,6 +423,12 @@
       return;
     }
 
+    if (state === 'intro') {
+      // World holds still while she turns to face up the track.
+      if (stateTimer >= TURN_TIME) setState('playing');
+      return;
+    }
+
     if (state === 'dying') {
       player.deathT += dt;
       if (player.deathT >= DEATH_ANIM_TIME + 0.4) setState('gameover');
@@ -533,88 +540,85 @@
     ctx.closePath();
   }
 
-  // Draws the accountant with feet at (0, 0) in the current transform.
-  // frame: 0 or 1 for the two-frame running animation.
-  // swing: -1..1, how far the ponytail is swung to the side.
-  function drawAccountant(frame, showShadow, swing) {
+  // The accountant is drawn with feet at (0, 0) in the current transform, in
+  // two views that share the same proportions (and therefore hitbox):
+  //   drawAccountantFront - facing the camera (start screen, start of turn)
+  //   drawAccountantBack  - seen from behind while running up the screen
+  const HAIR = '#5d4037';
+  const HAIR_DARK = '#3e2723';
+  const PANTS = '#263238';
+  const HEAD_Y = -66;           // head center, in drawing units
+
+  function drawPlayerShadow() {
     const s = u;
-    const HAIR = '#4e342e';
-    const PANTS = '#263238';
-
-    // Shadow
-    if (showShadow) {
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.beginPath();
-      ctx.ellipse(0, 2 * s, 20 * s, 6 * s, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const headY = -66 * s;
-
-    // Ponytail: tied high at the back of the head, swings while running.
-    // Drawn first so the head covers its base.
-    const knotX = 0, knotY = headY - 14 * s;
-    const dir = swing >= 0 ? 1 : -1;
-    const tipX = swing * 31 * s;
-    const tipY = headY + 14 * s - Math.abs(swing) * 4 * s;
-    const ctrlX = swing * 34 * s;
-    const ctrlY = headY - 16 * s;
-    ctx.fillStyle = HAIR;
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
     ctx.beginPath();
-    ctx.moveTo(knotX - 5 * dir * s, knotY);
-    ctx.quadraticCurveTo(ctrlX + 4 * dir * s, ctrlY, tipX + 2 * dir * s, tipY);
-    ctx.quadraticCurveTo(tipX, tipY + 4 * s, tipX - 3 * dir * s, tipY - 1 * s);
-    ctx.quadraticCurveTo(ctrlX - 8 * dir * s, ctrlY + 8 * s, knotX + 5 * dir * s, knotY + 4 * s);
-    ctx.closePath();
+    ctx.ellipse(0, 2 * s, 20 * s, 6 * s, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
 
-    // Legs: dark pants (alternate which leg is lifted)
+  // Legs + shoes. frame 0/1 alternates which leg is lifted; -1 = standing.
+  function drawLegs(frame) {
+    const s = u;
     const legTop = -24 * s;
-    const leftLen = frame === 0 ? 24 : 16;
-    const rightLen = frame === 0 ? 16 : 24;
+    const leftLen = frame === 0 ? 24 : frame === 1 ? 16 : 24;
+    const rightLen = frame === 0 ? 16 : frame === 1 ? 24 : 24;
     ctx.fillStyle = PANTS;
     roundRect(-10 * s, legTop, 8 * s, leftLen * s, 3 * s); ctx.fill();
     roundRect(2 * s, legTop, 8 * s, rightLen * s, 3 * s); ctx.fill();
-    // Shoes
     ctx.fillStyle = '#111111';
-    roundRect(-11 * s, legTop + leftLen * s - 4 * s, 10 * s, 5 * s, 2 * s); ctx.fill();
-    roundRect(1 * s, legTop + rightLen * s - 4 * s, 10 * s, 5 * s, 2 * s); ctx.fill();
+    roundRect(-11 * s, legTop + leftLen * s - 4.5 * s, 10 * s, 5.5 * s, 2.5 * s); ctx.fill();
+    roundRect(1 * s, legTop + rightLen * s - 4.5 * s, 10 * s, 5.5 * s, 2.5 * s); ctx.fill();
+  }
 
-    // Arms: navy blazer sleeves, swinging opposite to legs
-    const armSwing = frame === 0 ? -3 : 3;
+  // Navy blazer sleeves with skin-tone hands. armSwing in drawing units.
+  function drawArms(armSwing) {
+    const s = u;
     ctx.fillStyle = COLORS.navy;
-    roundRect(-21 * s, -50 * s + armSwing * s, 7 * s, 20 * s, 3 * s); ctx.fill();
-    roundRect(14 * s, -50 * s - armSwing * s, 7 * s, 20 * s, 3 * s); ctx.fill();
-    // White cuffs + hands
-    ctx.fillStyle = COLORS.white;
-    ctx.fillRect(-21 * s, -33 * s + armSwing * s, 7 * s, 2.5 * s);
-    ctx.fillRect(14 * s, -33 * s - armSwing * s, 7 * s, 2.5 * s);
+    roundRect(-21 * s, -50 * s + armSwing * s, 7 * s, 20 * s, 3.5 * s); ctx.fill();
+    roundRect(14 * s, -50 * s - armSwing * s, 7 * s, 20 * s, 3.5 * s); ctx.fill();
     ctx.fillStyle = COLORS.skin;
-    ctx.beginPath(); ctx.arc(-17.5 * s, -28 * s + armSwing * s, 3.8 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(17.5 * s, -28 * s - armSwing * s, 3.8 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-17.5 * s, -28.5 * s + armSwing * s, 3.8 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(17.5 * s, -28.5 * s - armSwing * s, 3.8 * s, 0, Math.PI * 2); ctx.fill();
+  }
 
-    // Body: navy blazer
-    ctx.fillStyle = COLORS.navy;
-    roundRect(-15 * s, -52 * s, 30 * s, 31 * s, 6 * s);
+  function drawAccountantFront() {
+    const s = u;
+    const headY = HEAD_Y * s;
+
+    // Ponytail hanging behind her right shoulder (drawn first; body overlaps it)
+    ctx.fillStyle = HAIR;
+    ctx.beginPath();
+    ctx.moveTo(6 * s, headY - 10 * s);
+    ctx.quadraticCurveTo(27 * s, headY - 8 * s, 24 * s, headY + 18 * s);
+    ctx.quadraticCurveTo(22 * s, headY + 28 * s, 17 * s, headY + 26 * s);
+    ctx.quadraticCurveTo(18 * s, headY + 4 * s, 8 * s, headY - 2 * s);
+    ctx.closePath();
     ctx.fill();
 
-    // White top showing in the blazer's V opening
+    drawLegs(-1);
+    drawArms(0);
+
+    // Blazer body
+    ctx.fillStyle = COLORS.navy;
+    roundRect(-15 * s, -52 * s, 30 * s, 31 * s, 7 * s);
+    ctx.fill();
+    // White top in the V opening
     ctx.fillStyle = COLORS.white;
     ctx.beginPath();
     ctx.moveTo(-6 * s, -52 * s);
     ctx.lineTo(6 * s, -52 * s);
-    ctx.lineTo(0, -35 * s);
+    ctx.lineTo(0, -36 * s);
     ctx.closePath();
     ctx.fill();
-
     // Lapels
     ctx.strokeStyle = '#3949ab';
     ctx.lineWidth = 1.4 * s;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-7 * s, -52 * s); ctx.lineTo(-1 * s, -35 * s);
-    ctx.moveTo(7 * s, -52 * s); ctx.lineTo(1 * s, -35 * s);
+    ctx.moveTo(-7 * s, -52 * s); ctx.lineTo(-1 * s, -36 * s);
+    ctx.moveTo(7 * s, -52 * s); ctx.lineTo(1 * s, -36 * s);
     ctx.stroke();
-
     // Gold buttons
     ctx.fillStyle = COLORS.gold;
     ctx.beginPath(); ctx.arc(0, -31 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
@@ -622,66 +626,131 @@
 
     // Neck
     ctx.fillStyle = COLORS.skin;
-    ctx.fillRect(-3.5 * s, -54 * s, 7 * s, 5 * s);
+    roundRect(-3.5 * s, -55 * s, 7 * s, 6 * s, 2 * s); ctx.fill();
 
-    // Long hair behind the face (frames it down to the jaw)
-    ctx.fillStyle = HAIR;
-    roundRect(-18 * s, headY - 14 * s, 36 * s, 30 * s, 13 * s);
-    ctx.fill();
-
-    // Head
-    ctx.fillStyle = COLORS.skin;
-    ctx.beginPath(); ctx.arc(0, headY, 15 * s, 0, Math.PI * 2); ctx.fill();
-
-    // Hair on top with a side-swept fringe
+    // Hair behind the face: a soft dome that falls into locks beside the cheeks
     ctx.fillStyle = HAIR;
     ctx.beginPath();
-    ctx.arc(0, headY, 16 * s, Math.PI, Math.PI * 2);
-    ctx.lineTo(16 * s, headY + 2 * s);
-    ctx.quadraticCurveTo(10 * s, headY - 7 * s, -2 * s, headY - 6 * s);
-    ctx.quadraticCurveTo(-11 * s, headY - 5 * s, -16 * s, headY + 4 * s);
+    ctx.arc(0, headY - 1 * s, 17 * s, Math.PI, 0);
+    ctx.lineTo(17 * s, headY + 7 * s);
+    ctx.quadraticCurveTo(17 * s, headY + 14 * s, 11 * s, headY + 13 * s);
+    ctx.lineTo(-11 * s, headY + 13 * s);
+    ctx.quadraticCurveTo(-17 * s, headY + 14 * s, -17 * s, headY + 7 * s);
     ctx.closePath();
     ctx.fill();
 
-    // Scrunchie where the ponytail is tied
-    ctx.fillStyle = COLORS.red;
-    ctx.beginPath(); ctx.arc(knotX, knotY, 3.2 * s, 0, Math.PI * 2); ctx.fill();
+    // Face
+    ctx.fillStyle = COLORS.skin;
+    ctx.beginPath(); ctx.arc(0, headY + 1 * s, 14.5 * s, 0, Math.PI * 2); ctx.fill();
+
+    // Side-swept bangs: high on her right, sweeping down across to her left
+    ctx.fillStyle = HAIR;
+    ctx.beginPath();
+    ctx.moveTo(-15.5 * s, headY + 3 * s);
+    ctx.arc(0, headY - 1 * s, 15.8 * s, Math.PI * 1.02, Math.PI * 1.98);
+    ctx.quadraticCurveTo(10 * s, headY - 9 * s, 3 * s, headY - 8 * s);
+    ctx.quadraticCurveTo(-8 * s, headY - 6 * s, -12 * s, headY + 2 * s);
+    ctx.closePath();
+    ctx.fill();
 
     // Round glasses
-    const gy = headY + 2 * s;
+    const gy = headY + 3 * s;
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.strokeStyle = COLORS.navy;
     ctx.lineWidth = 1.5 * s;
     ctx.beginPath(); ctx.arc(-6 * s, gy, 4.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.arc(6 * s, gy, 4.6 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-1.4 * s, gy); ctx.lineTo(1.4 * s, gy); ctx.stroke();
-    // Eyes with little lashes
+    // Eyes with a tiny shine
     ctx.fillStyle = COLORS.navy;
-    ctx.beginPath(); ctx.arc(-6 * s, gy + 0.5 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(6 * s, gy + 0.5 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = 0.9 * s;
-    ctx.beginPath();
-    ctx.moveTo(-8 * s, gy - 1 * s); ctx.lineTo(-9 * s, gy - 2.2 * s);
-    ctx.moveTo(8 * s, gy - 1 * s); ctx.lineTo(9 * s, gy - 2.2 * s);
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(-6 * s, gy + 0.5 * s, 1.7 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6 * s, gy + 0.5 * s, 1.7 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = COLORS.white;
+    ctx.beginPath(); ctx.arc(-5.4 * s, gy - 0.2 * s, 0.6 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6.6 * s, gy - 0.2 * s, 0.6 * s, 0, Math.PI * 2); ctx.fill();
 
-    // Rosy cheeks + smile
-    ctx.fillStyle = 'rgba(229,57,53,0.25)';
-    ctx.beginPath(); ctx.arc(-10 * s, headY + 8 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(10 * s, headY + 8 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill();
+    // Rosy cheeks + friendly smile
+    ctx.fillStyle = 'rgba(229,57,53,0.22)';
+    ctx.beginPath(); ctx.arc(-10 * s, headY + 9 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(10 * s, headY + 9 * s, 2.6 * s, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#c62828';
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath(); ctx.arc(0, headY + 8 * s, 3.5 * s, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+  }
+
+  // frame: 0/1 running frames. swing: -1..1 ponytail swing.
+  function drawAccountantBack(frame, swing) {
+    const s = u;
+    const headY = HEAD_Y * s;
+
+    drawLegs(frame);
+    drawArms(frame === 0 ? -3 : 3);
+
+    // Blazer from the back: center seam and a small vent at the hem
+    ctx.fillStyle = COLORS.navy;
+    roundRect(-15 * s, -52 * s, 30 * s, 31 * s, 7 * s);
+    ctx.fill();
+    ctx.strokeStyle = '#2c3a63';
     ctx.lineWidth = 1.4 * s;
-    ctx.beginPath(); ctx.arc(0, headY + 7 * s, 3.5 * s, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, -49 * s); ctx.lineTo(0, -21 * s);
+    ctx.stroke();
+    // White top's collar peeking out at the neck
+    ctx.fillStyle = COLORS.white;
+    roundRect(-6 * s, -54 * s, 12 * s, 4 * s, 2 * s); ctx.fill();
+
+    // Neck
+    ctx.fillStyle = COLORS.skin;
+    roundRect(-3.5 * s, -56 * s, 7 * s, 4 * s, 2 * s); ctx.fill();
+
+    // Ears peeking out at the sides
+    ctx.beginPath(); ctx.ellipse(-14.5 * s, headY + 2 * s, 2.5 * s, 3.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(14.5 * s, headY + 2 * s, 2.5 * s, 3.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Back of the head: all hair, with a soft highlight
+    ctx.fillStyle = '#6d4c41';
+    ctx.beginPath(); ctx.arc(0, headY, 15.5 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath(); ctx.arc(0, headY, 11 * s, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke();
+
+    // High ponytail: tied near the crown, swinging side to side down the back
+    const knotY = headY - 10 * s;
+    const tipX = swing * 15 * s;
+    const tipY = headY + 26 * s - Math.abs(swing) * 4 * s;
+    const ctrlX = swing * 10 * s;
+    ctx.fillStyle = HAIR_DARK;
+    ctx.beginPath();
+    ctx.moveTo(-4 * s, knotY);
+    ctx.bezierCurveTo(ctrlX - 13 * s, headY + 2 * s, ctrlX - 6 * s, headY + 18 * s, tipX, tipY);
+    ctx.bezierCurveTo(ctrlX + 6 * s, headY + 18 * s, ctrlX + 13 * s, headY + 2 * s, 4 * s, knotY);
+    ctx.closePath();
+    ctx.fill();
+    // Hair tie
+    ctx.fillStyle = COLORS.navy;
+    roundRect(-5.5 * s, knotY - 2.5 * s, 11 * s, 5 * s, 2.5 * s);
+    ctx.fill();
   }
 
   function drawPlayer() {
+    if (state === 'start') return;   // she is shown on the start panel instead
+
     const baseY = playerBaseY();
     const frame = Math.floor(player.runT * 8) % 2;
 
     ctx.save();
     ctx.translate(player.x, baseY);
 
-    if (state === 'dying' || state === 'gameover') {
+    if (state === 'intro') {
+      // Turn-around: squash to edge-on, swap front -> back, unsquash, with a hop.
+      const t = Math.min(1, stateTimer / TURN_TIME);
+      drawPlayerShadow();
+      ctx.translate(0, -Math.sin(t * Math.PI) * 6 * u);
+      ctx.scale(Math.max(0.06, Math.abs(Math.cos(t * Math.PI))), 1);
+      if (t < 0.5) drawAccountantFront();
+      else drawAccountantBack(0, 0);
+    } else if (state === 'dying' || state === 'gameover') {
       // Spin a couple of times, then topple onto the side.
       const t = Math.min(1, player.deathT / DEATH_ANIM_TIME);
       const e = easeOutCubic(t);
@@ -689,16 +758,14 @@
       ctx.translate(0, -36 * u);
       ctx.rotate(angle);
       ctx.translate(0, 36 * u + e * 10 * u);
-      drawAccountant(0, false, 0);
+      drawAccountantBack(0, 0);
     } else {
       // Flash while invincible.
       if (player.invT > 0 && Math.floor(player.invT * 12) % 2 === 0) ctx.globalAlpha = 0.3;
-      const running = state === 'playing' || state === 'start';
+      drawPlayerShadow();
       // One full ponytail swing per two-frame run cycle.
-      // Shaped so the tail lingers out to each side (visible past the hair).
-      const wave = Math.sin(player.runT * 8 * Math.PI);
-      const swing = running ? Math.sign(wave) * Math.pow(Math.abs(wave), 0.3) : 0.7;
-      drawAccountant(running ? frame : 0, true, swing);
+      const swing = Math.sin(player.runT * 8 * Math.PI);
+      drawAccountantBack(frame, swing);
     }
     ctx.restore();
   }
@@ -1035,8 +1102,22 @@
       ctx.fillText('Debit Dash', cx, py + titleSize * 0.95);
     }
 
-    // Divider rule under the title
-    let y = py + titleSize * 1.75;
+    // The accountant, facing forward, large and centered under the title
+    let y = py + titleSize * 1.55;
+    const charH = Math.max(80, Math.min(170, H * 0.21));   // px, head to feet
+    const k = charH / (88 * u);                           // figure is ~88u tall
+    if (draw) {
+      const bob = Math.sin(globalTime * 3) * 2;
+      ctx.save();
+      ctx.translate(cx, y + charH + bob);
+      ctx.scale(k, k);
+      drawPlayerShadow();
+      drawAccountantFront();
+      ctx.restore();
+    }
+    y += charH + 18;
+
+    // Divider rule
     if (draw) {
       ctx.fillStyle = COLORS.green;
       ctx.fillRect(cx - panelW * 0.3, y - 1, panelW * 0.6, 2);
