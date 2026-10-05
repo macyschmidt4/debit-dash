@@ -62,9 +62,13 @@
 
   // Speeds are expressed as a fraction of the game area height per second,
   // so the game feels the same on short and tall screens.
-  const START_SPEED = 0.35;      // 70% of the original 0.5 starting speed
-  const MAX_SPEED = 0.5;
-  const RAMP_SECONDS = 90;      // time to go from start speed to max speed
+  const START_SPEED = 0.35;     // 70% of the original 0.5 starting speed
+  const MAX_SPEED = 0.75;       // 1.5x the original 0.5 starting speed
+  const RAMP_SECONDS = 120;     // time to go from start speed to max speed
+  // After max speed, "overtime" pressure builds over this many seconds:
+  // fewer coin-only rows and more two-obstacle rows, so obstacle rows come
+  // more often. Spacing still obeys the fair-spacing rule below.
+  const OVERTIME_RAMP = 60;
   const SPEED_RAMP = (MAX_SPEED - START_SPEED) / RAMP_SECONDS; // speed gained per second
   const ROW_TIME = 0.75;        // seconds between spawn rows (at any speed)
 
@@ -133,7 +137,7 @@
   // ===========================================================================
   // GAME STATE
   // ===========================================================================
-  // state: 'start' | 'intro' (turn-around) | 'playing' | 'dying' | 'gameover'
+  // state: 'start' | 'intro' (turn-around) | 'playing' | 'paused' | 'dying' | 'gameover'
   let state = 'start';
   let score = 0;
   let distancePoints = 0;       // fractional points from distance, folded into score
@@ -182,6 +186,17 @@
   function setState(s) {
     state = s;
     stateTimer = 0;
+  }
+
+  // Pausing (e.g. for future question checkpoints). Speed is derived from
+  // playTime, which only advances while 'playing', so a paused run resumes at
+  // exactly the speed and difficulty it had - nothing resets.
+  function pauseGame() {
+    if (state === 'playing') setState('paused');
+  }
+
+  function resumeGame() {
+    if (state === 'paused') setState('playing');
   }
 
   function startGame() {
@@ -302,8 +317,11 @@
 
     // Difficulty: chance of a 2-obstacle row grows with speed.
     const difficulty = (speed - START_SPEED) / (MAX_SPEED - START_SPEED);
+    const overtime = Math.min(1, Math.max(0, playTime - RAMP_SECONDS) / OVERTIME_RAMP);
+    const coinRowChance = 0.22 - 0.14 * overtime;          // 22% -> 8%
+    const doubleChance = 0.3 + 0.35 * difficulty + 0.15 * overtime; // up to 80%
 
-    if (Math.random() < 0.22) {
+    if (Math.random() < coinRowChance) {
       // Coin-only row: a short trail of coins in one lane (above spawnY).
       const lane = pick([0, 1, 2]);
       const count = 2 + Math.floor(Math.random() * 3);
@@ -314,7 +332,7 @@
 
     // Obstacle row: 1 or 2 obstacles, NEVER all 3 lanes.
     let open;
-    if (Math.random() < 0.3 + 0.35 * difficulty) {
+    if (Math.random() < doubleChance) {
       // Two obstacles leave a single open lane. If the previous row also had a
       // single open lane on an edge, don't put this one on the opposite edge:
       // the player never has to cross two lanes between back-to-back tight rows.
@@ -437,7 +455,7 @@
 
     if (state !== 'playing') return;
 
-    // --- Speed ramp (capped) ---
+    // --- Speed ramp (capped). playTime only counts time spent playing. ---
     playTime += dt;
     speed = Math.min(MAX_SPEED, START_SPEED + playTime * SPEED_RAMP);
     const pxSpeed = speed * H;
