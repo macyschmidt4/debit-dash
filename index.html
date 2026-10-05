@@ -283,7 +283,7 @@
   }
 
   function makeObstacle(lane, y) {
-    const types = ['paper', 'error', 'scale'];
+    const types = ['stack', 'invoice', 'building'];
     const type = types[Math.floor(Math.random() * types.length)];
     return { kind: 'obstacle', type, lane, y, phase: Math.random() * Math.PI * 2 };
   }
@@ -709,11 +709,11 @@
   // Every obstacle is a rounded square tile centered in its lane. The icon is
   // drawn in a 100x100 box (-50..50) scaled to the tile and clipped to it, so
   // nothing can ever spill past the tile or the lane.
-  const TILE_STYLES = {
-    paper: { bg: COLORS.navy, border: '#3f51b5' },
-    error: { bg: COLORS.white, border: COLORS.red },
-    scale: { bg: COLORS.green, border: '#1b5e20' },
-  };
+  // All tiles share a cream face and a dark red border so they pop against the
+  // green ledger (coins stay gold, so they never read as obstacles).
+  const TILE_BG = '#fff3e0';
+  const TILE_BORDER = '#b71c1c';
+  const INK = COLORS.navy;        // bold outline color for icons
 
   function drawObstacleTile(o) {
     const T = tileSize();
@@ -721,8 +721,7 @@
     const y = o.y;
     const left = x - T / 2, top = y - T / 2;
     const r = T * 0.18;
-    const lw = T * 0.05;
-    const style = TILE_STYLES[o.type];
+    const lw = T * 0.07;
 
     ctx.save();
     // Drop shadow (offset straight down, so it stays inside the lane)
@@ -730,112 +729,162 @@
     roundRect(left, top + T * 0.06, T, T, r);
     ctx.fill();
 
-    // Tile body
-    ctx.fillStyle = style.bg;
+    // Tile body; everything after this is clipped to the tile
+    ctx.fillStyle = TILE_BG;
     roundRect(left, top, T, T, r);
     ctx.fill();
     ctx.clip();
 
-    // Border drawn inside the tile edge
-    ctx.strokeStyle = style.border;
+    // Icon in a 100x100 box (-50..50) scaled to the tile
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(T / 100, T / 100);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (o.type === 'stack') drawStackIcon();
+    else if (o.type === 'invoice') drawInvoiceIcon();
+    else drawBuildingIcon();
+    ctx.restore();
+
+    // Border drawn last, inside the tile edge, so it frames the icon
+    ctx.strokeStyle = TILE_BORDER;
     ctx.lineWidth = lw;
     roundRect(left + lw / 2, top + lw / 2, T - lw, T - lw, r - lw / 2);
     ctx.stroke();
-
-    // Icon
-    ctx.translate(x, y);
-    ctx.scale(T / 100, T / 100);
-    if (o.type === 'paper') drawPaperIcon();
-    else if (o.type === 'error') drawErrorIcon();
-    else drawScaleIcon(o.phase);
     ctx.restore();
   }
 
-  // Icon: a stack of paperwork with a gold binder clip.
-  function drawPaperIcon() {
-    const sheets = [
-      { dx: 7, dy: -5, color: '#b0bec5' },
-      { dx: 3.5, dy: -2.5, color: '#cfd8dc' },
-      { dx: 0, dy: 0, color: COLORS.white },
-    ];
-    for (const sh of sheets) {
-      ctx.fillStyle = sh.color;
-      roundRect(-25 + sh.dx, -27 + sh.dy, 46, 58, 4);
-      ctx.fill();
-    }
-    ctx.strokeStyle = '#90a4ae';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
-      const ly = -12 + i * 10;
-      ctx.beginPath();
-      ctx.moveTo(-17, ly);
-      ctx.lineTo(i === 3 ? 2 : 13, ly);
-      ctx.stroke();
-    }
-    ctx.fillStyle = COLORS.gold;
-    roundRect(-9, -32, 18, 9, 2);
+  // A red slanted rubber-stamp label (used by the invoice and building).
+  function drawStamp(text, cx, cy, angle, w, h, fontSize) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    roundRect(-w / 2, -h / 2, w, h, 3);
     ctx.fill();
-  }
-
-  // Icon: a tilted red "ERROR" stamp mark.
-  function drawErrorIcon() {
-    ctx.rotate(-0.2);
     ctx.strokeStyle = COLORS.red;
-    ctx.lineWidth = 4;
-    roundRect(-36, -16, 72, 32, 4);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    roundRect(-31, -11, 62, 22, 3);
+    ctx.lineWidth = 3.5;
     ctx.stroke();
     ctx.fillStyle = COLORS.red;
-    ctx.font = `900 17px ${FONT}`;
+    ctx.font = `900 ${fontSize}px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ERROR', 0, 1);
+    ctx.fillText(text, 0, 1);
+    ctx.restore();
   }
 
-  // Icon: a balance scale tipped down on the left by a stack of coins.
-  function drawScaleIcon(phase) {
+  // Icon 1: a tall, messy, overflowing stack of papers, slightly tilted,
+  // with loose sheets sticking out of the sides.
+  function drawStackIcon() {
+    ctx.rotate(-0.08);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2.5;
+
+    // Loose sheets poking out (drawn first so the stack overlaps them)
+    const loose = [
+      { x: 14, y: -6, a: 0.38 },
+      { x: -14, y: 14, a: -0.32 },
+      { x: 10, y: 24, a: 0.2 },
+    ];
+    for (const l of loose) {
+      ctx.save();
+      ctx.translate(l.x, l.y);
+      ctx.rotate(l.a);
+      ctx.fillStyle = '#eceff1';
+      ctx.fillRect(-22, -4, 44, 8);
+      ctx.strokeRect(-22, -4, 44, 8);
+      ctx.restore();
+    }
+
+    // The main stack: thick sheets piled from the bottom up, each a bit off.
+    const offsets = [0, -4, 3, -2, 5, -5, 2, -3, 4];
+    const sheetH = 7, bottom = 34;
+    for (let i = 0; i < offsets.length; i++) {
+      const sy = bottom - (i + 1) * sheetH;
+      ctx.save();
+      ctx.translate(offsets[i], sy + sheetH / 2);
+      ctx.rotate(offsets[i] * 0.012);
+      ctx.fillStyle = i % 2 === 0 ? COLORS.white : '#f5f5f5';
+      ctx.fillRect(-24, -sheetH / 2, 48, sheetH);
+      ctx.strokeRect(-24, -sheetH / 2, 48, sheetH);
+      ctx.restore();
+    }
+  }
+
+  // Icon 2: a paper invoice with a red slanted "PAST DUE" stamp.
+  function drawInvoiceIcon() {
+    // Paper with a folded top-right corner
     ctx.fillStyle = COLORS.white;
-    roundRect(-17, 30, 34, 7, 2); ctx.fill();          // base
-    ctx.fillRect(-3, -20, 6, 52);                       // post
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-24, -36);
+    ctx.lineTo(14, -36);
+    ctx.lineTo(24, -26);
+    ctx.lineTo(24, 36);
+    ctx.lineTo(-24, 36);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#cfd8dc';
+    ctx.beginPath();
+    ctx.moveTo(14, -36); ctx.lineTo(14, -26); ctx.lineTo(24, -26); ctx.closePath();
+    ctx.fill(); ctx.stroke();
 
-    const tilt = -0.4 + Math.sin(globalTime * 3 + phase) * 0.04;
-    const half = 27, pivotY = -20;
-    const lx = -Math.cos(tilt) * half, ly = pivotY - Math.sin(tilt) * half;
-    const rx = Math.cos(tilt) * half, ry = pivotY + Math.sin(tilt) * half;
-    ctx.strokeStyle = COLORS.white;
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(rx, ry); ctx.stroke();
-    ctx.fillStyle = COLORS.gold;
-    ctx.beginPath(); ctx.arc(0, pivotY, 5, 0, Math.PI * 2); ctx.fill();
+    // Header bar + line items + total
+    ctx.fillStyle = INK;
+    ctx.fillRect(-17, -28, 22, 6);
+    ctx.strokeStyle = '#90a4ae';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      const ly = -12 + i * 9;
+      ctx.beginPath(); ctx.moveTo(-17, ly); ctx.lineTo(4, ly); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(10, ly); ctx.lineTo(17, ly); ctx.stroke();
+    }
+    ctx.strokeStyle = INK;
+    ctx.beginPath(); ctx.moveTo(4, 27); ctx.lineTo(17, 27); ctx.stroke();
 
-    const drawPan = (px, py, loaded) => {
-      const drop = 17;
-      ctx.strokeStyle = COLORS.white;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(px, py); ctx.lineTo(px - 11, py + drop);
-      ctx.moveTo(px, py); ctx.lineTo(px + 11, py + drop);
-      ctx.stroke();
-      if (loaded) {
-        ctx.fillStyle = COLORS.goldDark;
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.ellipse(px, py + drop - 3 - i * 4, 7, 2.6, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.fillStyle = COLORS.gold;
-      ctx.beginPath();
-      ctx.ellipse(px, py + drop, 13, 4.5, 0, 0, Math.PI);
-      ctx.closePath();
-      ctx.fill();
-    };
-    drawPan(lx, ly, true);
-    drawPan(rx, ry, false);
+    drawStamp('PAST DUE', 0, 4, -0.38, 80, 22, 12);
+  }
+
+  // Icon 3: a small building with a crack down the front and an
+  // "IMPAIRED" stamp.
+  function drawBuildingIcon() {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3;
+
+    // Roof
+    ctx.fillStyle = '#90a4ae';
+    ctx.beginPath();
+    ctx.moveTo(-32, -14); ctx.lineTo(0, -36); ctx.lineTo(32, -14);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Walls
+    ctx.fillStyle = '#cfd8dc';
+    ctx.fillRect(-26, -14, 52, 48);
+    ctx.strokeRect(-26, -14, 52, 48);
+
+    // Windows and door
+    ctx.fillStyle = '#4fc3f7';
+    for (const [wx, wy] of [[-20, -6], [10, -6]]) {
+      ctx.fillRect(wx, wy, 10, 10);
+      ctx.strokeRect(wx, wy, 10, 10);
+    }
+
+    // Crack zig-zagging from the roof peak down the front
+    ctx.strokeStyle = '#212121';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(1, -33);
+    ctx.lineTo(-4, -20);
+    ctx.lineTo(4, -8);
+    ctx.lineTo(-3, 4);
+    ctx.lineTo(4, 14);
+    ctx.lineTo(0, 22);
+    ctx.stroke();
+
+    drawStamp('IMPAIRED', 0, 25, -0.22, 76, 19, 12);
   }
 
   function drawCoin(x, y, phase) {
